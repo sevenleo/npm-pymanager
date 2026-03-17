@@ -12,6 +12,7 @@ import time
 LOCALES_DIR = "locales"
 LANG = "en"
 STRINGS = {}
+DELAY = 2
 
 # =====================================================
 # I18N
@@ -216,7 +217,8 @@ def update_all(rows):
     global_to_update = [r["name"] for r in rows if r["global_outdated"]]
 
     if not local_to_update and not global_to_update:
-        input("\n" + t("nothing_to_update"))
+        print("\n" + t("nothing_to_update"))
+        time.sleep(DELAY)
         return
 
     # Update local packages
@@ -233,12 +235,14 @@ def update_all(rows):
             print(f"  → {name}")
         os.system("npm update -g " + " ".join(global_to_update))
 
-    input("\n" + t("update_done"))
+    print("\n" + t("update_done"))
+    time.sleep(DELAY)
 
 
 def update_one(row):
     if not row["local_outdated"] and not row["global_outdated"]:
-        input("\n" + t("already_updated"))
+        print("\n" + t("already_updated"))
+        time.sleep(DELAY)
         return
 
     name = row["name"]
@@ -251,7 +255,8 @@ def update_one(row):
         print(f"\n{t('updating_global_pkg')} {name}")
         os.system(f"npm update -g {name}")
 
-    input("\n" + t("update_done"))
+    print("\n" + t("update_done"))
+    time.sleep(DELAY)
 
 
 # =====================================================
@@ -271,7 +276,7 @@ def collect_rows():
 # =====================================================
 def main():
     load_language()
-    delay = 2
+
 
     while True:
         clear()
@@ -303,10 +308,10 @@ def main():
                 update_one(row)
             except Exception:
                 print(t("invalid_number"))
-                time.sleep(delay)
+                time.sleep(DELAY)
         else:
             print(t("invalid_option"))
-            time.sleep(delay)
+            time.sleep(DELAY)
 
 
 if __name__ == "__main__":
