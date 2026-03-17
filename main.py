@@ -4,6 +4,8 @@ import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 
 
 # =====================================================
@@ -13,6 +15,7 @@ LOCALES_DIR = "locales"
 LANG = "en"
 STRINGS = {}
 DELAY = 2
+SIZE_CACHE = {}
 
 # =====================================================
 # I18N
@@ -108,10 +111,24 @@ def human_size(size):
     return f"{size:.1f}TB"
 
 
-def get_pkg_size(name, global_mode=False):
+@lru_cache(maxsize=2)
+def npm_root(global_mode=False):
+    return run("npm root -g") if global_mode else "node_modules"
+
+
+def get_pkg_size(name, global_mode=False, version=""):
+    cache_key = (global_mode, name, version)
+    cached_size = SIZE_CACHE.get(cache_key)
+    if cached_size is not None:
+        return cached_size
+
     try:
-        base = run("npm root -g") if global_mode else "node_modules"
+        base = npm_root(global_mode)
         path = os.path.join(base, name)
+
+        if not os.path.isdir(path):
+            SIZE_CACHE[cache_key] = ""
+            return ""
 
         total = 0
         for root, _, files in os.walk(path):
@@ -120,9 +137,43 @@ def get_pkg_size(name, global_mode=False):
                 if os.path.exists(fp):
                     total += os.path.getsize(fp)
 
-        return human_size(total)
+        size = human_size(total)
     except Exception:
-        return "-"
+        size = "-"
+
+    SIZE_CACHE[cache_key] = size
+    return size
+
+
+def collect_sizes(local, global_, names):
+    size_map = {}
+    jobs = []
+
+    for name in names:
+        if name in local:
+            jobs.append(("local", name, local.get(name, {}).get("version", "")))
+        if name in global_:
+            jobs.append(("global", name, global_.get(name, {}).get("version", "")))
+
+    if not jobs:
+        return size_map
+
+    max_workers = min(8, len(jobs))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            (scope, name): executor.submit(
+                get_pkg_size,
+                name,
+                scope == "global",
+                version,
+            )
+            for scope, name, version in jobs
+        }
+
+        for key, future in futures.items():
+            size_map[key] = future.result()
+
+    return size_map
 
 
 # =====================================================
@@ -130,6 +181,7 @@ def get_pkg_size(name, global_mode=False):
 # =====================================================
 def build_rows(local, global_, outdated_local, outdated_global):
     names = sorted(set(local) | set(global_))
+    size_map = collect_sizes(local, global_, names)
     rows = []
 
     for i, name in enumerate(names, start=1):
@@ -140,9 +192,8 @@ def build_rows(local, global_, outdated_local, outdated_global):
         lnew = outdated_local.get(name, {}).get("latest", "")
         gnew = outdated_global.get(name, {}).get("latest", "")
 
-        # Calculate sizes
-        lsize = get_pkg_size(name, False) if name in local else ""
-        gsize = get_pkg_size(name, True) if name in global_ else ""
+        lsize = size_map.get(("local", name), "")
+        gsize = size_map.get(("global", name), "")
 
         # Single size column: show global if exists, else local, or both with labels
         if gsize and lsize:
@@ -263,10 +314,19 @@ def update_one(row):
 # DATA REFRESH
 # =====================================================
 def collect_rows():
-    local_pkgs = npm_list(False)
-    global_pkgs = npm_list(True)
-    outdated_local = npm_outdated(False)
-    outdated_global = npm_outdated(True)
+    # These npm calls are independent, so collect them concurrently.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            "local": executor.submit(npm_list, False),
+            "global": executor.submit(npm_list, True),
+            "outdated_local": executor.submit(npm_outdated, False),
+            "outdated_global": executor.submit(npm_outdated, True),
+        }
+
+        local_pkgs = futures["local"].result()
+        global_pkgs = futures["global"].result()
+        outdated_local = futures["outdated_local"].result()
+        outdated_global = futures["outdated_global"].result()
 
     return build_rows(local_pkgs, global_pkgs, outdated_local, outdated_global)
 
