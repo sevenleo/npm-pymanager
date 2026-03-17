@@ -20,10 +20,10 @@ This tool simplifies maintenance of npm environments by providing a clear overvi
 |--------|-------------|
 | `Package` | Package name |
 | `Local Version` | Installed local version |
-| `Local New` | Latest available version |
+| `LOCAL_NEW` | Latest available version |
 | `Local Size` | Disk usage of local package |
 | `Global Version` | Installed global version |
-| `Global New` | Latest available version |
+| `GLOBAL_NEW` | Latest available version |
 | `Global Size` | Disk usage of global package |
 
 Packages requiring updates are marked with: **(u)**
