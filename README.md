@@ -13,18 +13,24 @@ This tool simplifies maintenance of npm environments by providing a clear overvi
 - Displays **local** and **global** npm packages side-by-side
 - Automatically merges both lists into a single table
 - Each package receives a numeric identifier for quick selection
+- Filters out hidden/private packages (starting with `.`)
 
-**Displayed information:**
+**Table columns (in order):**
 
 | Column | Description |
 |--------|-------------|
-| `Package` | Package name |
-| `Local Version` | Installed local version |
-| `LOCAL_NEW` | Latest available version |
-| `Local Size` | Disk usage of local package |
-| `Global Version` | Installed global version |
-| `GLOBAL_NEW` | Latest available version |
-| `Global Size` | Disk usage of global package |
+| `#` | Package identifier number |
+| `PACKAGE` | Package name |
+| `GLOBAL_VERSION` | Installed global version |
+| `GLOBAL_UPDATE` | Latest available global version |
+| `LOCAL_VERSION` | Installed local version |
+| `LOCAL_UPDATE` | Latest available local version |
+| `SIZE` | Combined disk usage (shows global, local, or both with `(G)` / `(L)` labels) |
+
+**Size column behavior:**
+- Only global: `15.2MB`
+- Only local: `8.5KB`
+- Both: `15.2MB(G) 8.5KB(L)`
 
 Packages requiring updates are marked with: **(u)**
 
@@ -32,22 +38,26 @@ Packages requiring updates are marked with: **(u)**
 
 ### 🔄 Update Management
 
-#### Update All Packages
+#### Update All Packages (Optimized)
 
-Press **`t`** to update:
-- All outdated local packages
-- All outdated global packages
+Press **`A`** to update:
+- Only packages that are actually outdated (local and/or global)
+- Shows list of packages before updating
+- Skips already up-to-date packages automatically
 
-If nothing requires updating, the system informs the user.
+**Efficiency:**
+- Does not run unnecessary npm commands
+- Displays which packages will be updated
+- Processes local and global updates separately
 
 #### Update a Single Package
 
 Press **`o`**, then enter the package number shown in the table.
 
 **Behavior:**
-- Updates only outdated targets
-- Supports local and global updates automatically
+- Updates only outdated targets (local and/or global)
 - Prevents updating packages already up to date
+- Shows feedback for each update operation
 
 ---
 
@@ -96,6 +106,7 @@ The application:
 - Prevents invalid updates
 - Displays informative messages
 - Never exits unexpectedly due to input errors
+- Filters out invalid npm packages (hidden packages starting with `.`)
 
 ---
 
@@ -107,6 +118,9 @@ The script calculates installed package size by scanning:
 - Global npm directories
 
 Sizes are displayed in human-readable format: **B / KB / MB / GB**
+
+**Combined size column:**
+- Shows global size, local size, or both with labels `(G)` and `(L)`
 
 ---
 
@@ -164,9 +178,9 @@ Select your language and start managing packages.
 
 | Key | Action |
 |-----|--------|
-| `t` | Update all packages |
-| `o` | Update one package |
-| `0` | Exit program |
+| `t` | Update ALL packages (optimized - only outdated) |
+| `o` | Update ONE package (local and/or global) |
+| `q` | Exit program |
 
 ---
 
@@ -174,9 +188,9 @@ Select your language and start managing packages.
 
 The script uses:
 
-- `npm list --json` — Local packages
-- `npm list -g --json` — Global packages
-- `npm outdated --json` — Outdated packages
+- `npm list --json` — Local packages (filtered: excludes hidden packages)
+- `npm list -g --json` — Global packages (filtered: excludes hidden packages)
+- `npm outdated --json` — Outdated packages (filtered: excludes hidden packages)
 - Filesystem scanning — Package size
 
 **No external Python libraries are required.**
@@ -189,6 +203,7 @@ The script uses:
 - Warns when no updates are available
 - Handles npm command failures gracefully
 - Prevents crashes caused by invalid input
+- Filters out invalid package names (starting with `.`)
 
 ---
 
