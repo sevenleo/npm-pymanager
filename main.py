@@ -76,7 +76,11 @@ def npm_list(global_mode=False):
     if not output:
         return {}
 
-    data = json.loads(output)
+    try:
+        data = json.loads(output)
+    except Exception:
+        return {}
+
     deps = data.get("dependencies", {})
     
     # Filter out hidden/private packages (starting with .)
@@ -228,6 +232,11 @@ def mark(text, outdated):
     return f"{text} (u)" if outdated else text
 
 
+def run_update_command(args):
+    result = subprocess.run(args)
+    return result.returncode == 0
+
+
 def print_table(rows):
     headers = [
         "#",
@@ -272,21 +281,23 @@ def update_all(rows):
         time.sleep(DELAY)
         return
 
+    all_ok = True
+
     # Update local packages
     if local_to_update:
         print("\n" + t("updating_local"))
         for name in local_to_update:
-            print(f"  → {name}")
-        os.system("npm update " + " ".join(local_to_update))
+            print(f"  -> {name}")
+        all_ok = run_update_command(["npm", "update", *local_to_update]) and all_ok
 
     # Update global packages
     if global_to_update:
         print("\n" + t("updating_global"))
         for name in global_to_update:
-            print(f"  → {name}")
-        os.system("npm update -g " + " ".join(global_to_update))
+            print(f"  -> {name}")
+        all_ok = run_update_command(["npm", "update", "-g", *global_to_update]) and all_ok
 
-    print("\n" + t("update_done"))
+    print("\n" + t("update_done" if all_ok else "update_failed"))
     time.sleep(DELAY)
 
 
@@ -297,16 +308,17 @@ def update_one(row):
         return
 
     name = row["name"]
+    all_ok = True
 
     if row["local_outdated"]:
         print(f"\n{t('updating_local_pkg')} {name}")
-        os.system(f"npm update {name}")
+        all_ok = run_update_command(["npm", "update", name]) and all_ok
 
     if row["global_outdated"]:
         print(f"\n{t('updating_global_pkg')} {name}")
-        os.system(f"npm update -g {name}")
+        all_ok = run_update_command(["npm", "update", "-g", name]) and all_ok
 
-    print("\n" + t("update_done"))
+    print("\n" + t("update_done" if all_ok else "update_failed"))
     time.sleep(DELAY)
 
 
@@ -365,10 +377,12 @@ def main():
             try:
                 num = int(input(t("enter_number") + " ").strip())
                 row = next(r for r in rows if r["id"] == num)
-                update_one(row)
-            except Exception:
+            except (TypeError, ValueError, StopIteration):
                 print(t("invalid_number"))
                 time.sleep(DELAY)
+                continue
+
+            update_one(row)
         else:
             print(t("invalid_option"))
             time.sleep(DELAY)

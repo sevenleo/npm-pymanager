@@ -26,5 +26,6 @@
   "press_enter": "Pressione ENTER para continuar...",
   "already_updated": "Este pacote já está atualizado.",
   "nothing_to_update": "Não há pacotes para atualizar.",
-  "update_done": "✔ Atualização concluída. Pressione ENTER para continuar..."
+  "update_done": "Atualização concluída.",
+  "update_failed": "Um ou mais comandos de atualização falharam."
 }

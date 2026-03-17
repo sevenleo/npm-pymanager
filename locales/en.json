@@ -26,6 +26,6 @@
   "press_enter": "Press ENTER to continue...",
   "already_updated": "This package is already up to date.",
   "nothing_to_update": "There are no packages to update.",
-  "update_done": "✔ Update finished. Press ENTER to continue..."
+  "update_done": "Update finished.",
+  "update_failed": "One or more update commands failed."
 }
-
