@@ -73,7 +73,10 @@ def npm_list(global_mode=False):
         return {}
 
     data = json.loads(output)
-    return data.get("dependencies", {})
+    deps = data.get("dependencies", {})
+    
+    # Filter out hidden/private packages (starting with .)
+    return {name: info for name, info in deps.items() if not name.startswith(".")}
 
 
 def npm_outdated(global_mode=False):
@@ -86,7 +89,9 @@ def npm_outdated(global_mode=False):
         return {}
 
     try:
-        return json.loads(output)
+        data = json.loads(output)
+        # Filter out hidden/private packages (starting with .)
+        return {name: info for name, info in data.items() if not name.startswith(".")}
     except Exception:
         return {}
 
