@@ -1,103 +1,93 @@
-NPM Package Manager TUI (Python)
+# NPM Package Manager TUI (Python)
 
-A lightweight terminal-based NPM package manager written in Python that allows you to visualize, compare, and update local and global npm packages from a single interactive interface.
+> A lightweight terminal-based NPM package manager written in Python that allows you to visualize, compare, and update local and global npm packages from a single interactive interface.
 
 This tool simplifies maintenance of npm environments by providing a clear overview of installed packages, update status, versions, and disk usage — all inside one screen.
 
+---
 
-==================================================
-FEATURES
-==================================================
+## ✨ Features
 
-PACKAGE VISUALIZATION
+### 📦 Package Visualization
 
-- Displays local and global npm packages side-by-side.
-- Automatically merges both lists into a single table.
-- Each package receives a numeric identifier for quick selection.
+- Displays **local** and **global** npm packages side-by-side
+- Automatically merges both lists into a single table
+- Each package receives a numeric identifier for quick selection
 
-Displayed information includes:
+**Displayed information:**
 
-Package            -> Package name
-Local Version      -> Installed local version
-Local New          -> Latest available version
-Local Size         -> Disk usage of local package
-Global Version     -> Installed global version
-Global New         -> Latest available version
-Global Size        -> Disk usage of global package
+| Column | Description |
+|--------|-------------|
+| `Package` | Package name |
+| `Local Version` | Installed local version |
+| `Local New` | Latest available version |
+| `Local Size` | Disk usage of local package |
+| `Global Version` | Installed global version |
+| `Global New` | Latest available version |
+| `Global Size` | Disk usage of global package |
 
-Packages requiring updates are marked with:
+Packages requiring updates are marked with: **(u)**
 
-(u)
+---
 
+### 🔄 Update Management
 
---------------------------------------------------
-UPDATE MANAGEMENT
---------------------------------------------------
+#### Update All Packages
 
-Update All Packages
-
-Press:
-t
-
-Updates:
-- all outdated local packages
-- all outdated global packages
+Press **`t`** to update:
+- All outdated local packages
+- All outdated global packages
 
 If nothing requires updating, the system informs the user.
 
+#### Update a Single Package
 
-Update a Single Package
+Press **`o`**, then enter the package number shown in the table.
 
-Press:
-o
+**Behavior:**
+- Updates only outdated targets
+- Supports local and global updates automatically
+- Prevents updating packages already up to date
 
-Then enter the package number shown in the table.
+---
 
-Behavior:
-- Updates only outdated targets.
-- Supports local and global updates automatically.
-- Prevents updating packages already up to date.
-
-
---------------------------------------------------
-AUTOMATIC REFRESH
---------------------------------------------------
+### 🔄 Automatic Refresh
 
 After any update operation:
 
-- Package data is recollected
-- Table is rebuilt
-- Screen refreshes automatically
-- Returns to selection menu
+1. Package data is recollected
+2. Table is rebuilt
+3. Screen refreshes automatically
+4. Returns to selection menu
 
-No restart required.
+**No restart required.**
 
+---
 
---------------------------------------------------
-MULTI-LANGUAGE SUPPORT (i18n)
---------------------------------------------------
+### 🌍 Multi-Language Support (i18n)
 
 At startup, the user selects a language:
 
-1. English
-2. Portuguese
-3. Spanish
+1. **English**
+2. **Portuguese**
+3. **Spanish**
 
 All interface text is loaded dynamically from JSON locale files.
 
-Locale structure:
+**Locale structure:**
 
+```
 locales/
- ├── en.json
- ├── pt.json
- └── es.json
+├── en.json
+├── pt.json
+└── es.json
+```
 
 Adding a new language only requires creating another JSON file.
 
+---
 
---------------------------------------------------
-SMART VALIDATION
---------------------------------------------------
+### ✅ Smart Validation
 
 The application:
 
@@ -107,131 +97,124 @@ The application:
 - Displays informative messages
 - Never exits unexpectedly due to input errors
 
+---
 
---------------------------------------------------
-PACKAGE SIZE DETECTION
---------------------------------------------------
+### 📏 Package Size Detection
 
 The script calculates installed package size by scanning:
 
-node_modules/
+- `node_modules/` (local)
+- Global npm directories
 
-and global npm directories.
+Sizes are displayed in human-readable format: **B / KB / MB / GB**
 
-Sizes are displayed in human-readable format:
+---
 
-B / KB / MB / GB
-
-
---------------------------------------------------
-TERMINAL EXPERIENCE
---------------------------------------------------
+### 💻 Terminal Experience
 
 - Automatic screen clearing between actions
 - Persistent interactive menu
 - Clean aligned table layout
 - Minimal dependencies (Python standard library only)
 
+---
 
-==================================================
-PROJECT STRUCTURE
-==================================================
+## 📁 Project Structure
 
+```
 project/
-
 ├── main.py
 └── locales/
     ├── en.json
     ├── pt.json
     └── es.json
+```
 
+---
 
-==================================================
-REQUIREMENTS
-==================================================
+## 📋 Requirements
 
-- Python 3.8+
-- Node.js
-- npm available in PATH
+- **Python 3.8+**
+- **Node.js**
+- **npm** available in PATH
 
-Verify installation:
+**Verify installation:**
 
+```bash
 node -v
 npm -v
 python --version
+```
 
+---
 
-==================================================
-USAGE
-==================================================
+## 🚀 Usage
 
-Run:
+**Run the application:**
 
+```bash
 python main.py
+```
 
-Select language and start managing packages.
+Select your language and start managing packages.
 
+---
 
-==================================================
-CONTROLS
-==================================================
+## 🎮 Controls
 
-t  -> Update all packages
-o  -> Update one package
-0  -> Exit program
+| Key | Action |
+|-----|--------|
+| `t` | Update all packages |
+| `o` | Update one package |
+| `0` | Exit program |
 
+---
 
-==================================================
-HOW DATA IS COLLECTED
-==================================================
+## 🔍 How Data is Collected
 
 The script uses:
 
-- npm list --json
-- npm list -g --json
-- npm outdated --json
-- filesystem scanning for package size
+- `npm list --json` — Local packages
+- `npm list -g --json` — Global packages
+- `npm outdated --json` — Outdated packages
+- Filesystem scanning — Package size
 
-No external Python libraries are required.
+**No external Python libraries are required.**
 
+---
 
-==================================================
-SAFETY BEHAVIOR
-==================================================
+## 🛡️ Safety Behavior
 
-- Will not update already updated packages.
-- Warns when no updates are available.
-- Handles npm command failures gracefully.
-- Prevents crashes caused by invalid input.
+- Will not update already updated packages
+- Warns when no updates are available
+- Handles npm command failures gracefully
+- Prevents crashes caused by invalid input
 
+---
 
-==================================================
-EXTENSIBILITY
-==================================================
+## 🔧 Extensibility
 
 Possible future improvements:
 
-- Arrow-key navigation (Textual/Rich TUI)
-- Async npm calls
-- Parallel size calculation
-- Filtering/search
-- Sorting columns
-- Update preview (changelog view)
-- Auto-update mode
-- CLI flags support
+- [ ] Arrow-key navigation (Textual/Rich TUI)
+- [ ] Async npm calls
+- [ ] Parallel size calculation
+- [ ] Filtering/search
+- [ ] Sorting columns
+- [ ] Update preview (changelog view)
+- [ ] Auto-update mode
+- [ ] CLI flags support
 
+---
 
-==================================================
-LICENSE
-==================================================
+## 📄 License
 
-MIT License — free to use and modify.
+**MIT License** — free to use and modify.
 
+---
 
-==================================================
-PURPOSE
-==================================================
+## 🎯 Purpose
 
 Provide a simple, transparent and efficient way to maintain npm environments without relying on heavy GUI tools or multiple commands.
 
-Ideal for developers managing multiple Node.js environments or maintaining shared systems.
+**Ideal for developers managing multiple Node.js environments or maintaining shared systems.**
