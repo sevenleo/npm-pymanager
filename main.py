@@ -258,16 +258,16 @@ def main():
 
         print("\n(u) =", t("needs_update"))
         print("\n" + t("options"))
-        print("[t]", t("update_all"))
+        print("[a]", t("update_all"))
         print("[o]", t("update_one"))
-        print("[0]", t("exit"))
+        print("[q]", t("exit"))
 
         choice = input("\n" + t("choose") + " ").strip().lower()
 
-        if choice == "0":
+        if choice == "q":
             break
 
-        elif choice == "t":
+        elif choice == "a":
             update_all(rows)
 
         elif choice == "o":
