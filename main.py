@@ -139,18 +139,31 @@ def build_rows(local, global_, outdated_local, outdated_global):
         lnew = outdated_local.get(name, {}).get("latest", "")
         gnew = outdated_global.get(name, {}).get("latest", "")
 
+        # Calculate sizes
+        lsize = get_pkg_size(name, False) if name in local else ""
+        gsize = get_pkg_size(name, True) if name in global_ else ""
+
+        # Single size column: show global if exists, else local, or both with labels
+        if gsize and lsize:
+            size_display = f"{gsize}(G) {lsize}(L)"
+        elif gsize:
+            size_display = gsize
+        elif lsize:
+            size_display = lsize
+        else:
+            size_display = ""
+
         rows.append(
             {
                 "id": i,
                 "name": name,
-                "lver": lver,
                 "gver": gver,
-                "lnew": lnew,
                 "gnew": gnew,
-                "lsize": get_pkg_size(name, False) if name in local else "",
-                "gsize": get_pkg_size(name, True) if name in global_ else "",
-                "local_outdated": name in outdated_local,
+                "lver": lver,
+                "lnew": lnew,
+                "size": size_display,
                 "global_outdated": name in outdated_global,
+                "local_outdated": name in outdated_local,
             }
         )
 
@@ -167,15 +180,14 @@ def print_table(rows):
     headers = [
         "#",
         t("package"),
-        t("local_version"),
-        t("local_new"),
-        t("local_size"),
         t("global_version"),
         t("global_new"),
-        t("global_size"),
+        t("local_version"),
+        t("local_new"),
+        t("size"),
     ]
 
-    widths = [5, 28, 14, 14, 12, 14, 14, 12]
+    widths = [5, 28, 14, 14, 14, 14, 20]
 
     print("\n" + t("packages_title") + "\n")
 
@@ -188,29 +200,38 @@ def print_table(rows):
     for r in rows:
         print(str(r["id"]).ljust(widths[0]), end="")
         print(r["name"][:27].ljust(widths[1]), end="")
-        print(mark(r["lver"], r["local_outdated"]).ljust(widths[2]), end="")
-        print(r["lnew"].ljust(widths[3]), end="")
-        print(r["lsize"].ljust(widths[4]), end="")
-        print(mark(r["gver"], r["global_outdated"]).ljust(widths[5]), end="")
-        print(r["gnew"].ljust(widths[6]), end="")
-        print(r["gsize"].ljust(widths[7]))
+        print(mark(r["gver"], r["global_outdated"]).ljust(widths[2]), end="")
+        print(r["gnew"].ljust(widths[3]), end="")
+        print(mark(r["lver"], r["local_outdated"]).ljust(widths[4]), end="")
+        print(r["lnew"].ljust(widths[5]), end="")
+        print(r["size"].ljust(widths[6]))
 
 
 # =====================================================
 # UPDATE
 # =====================================================
 def update_all(rows):
-    any_update = any(r["local_outdated"] or r["global_outdated"] for r in rows)
+    # Get only packages that need update
+    local_to_update = [r["name"] for r in rows if r["local_outdated"]]
+    global_to_update = [r["name"] for r in rows if r["global_outdated"]]
 
-    if not any_update:
+    if not local_to_update and not global_to_update:
         input("\n" + t("nothing_to_update"))
         return
 
-    print("\n" + t("updating_local"))
-    os.system("npm update")
+    # Update local packages
+    if local_to_update:
+        print("\n" + t("updating_local"))
+        for name in local_to_update:
+            print(f"  → {name}")
+        os.system("npm update " + " ".join(local_to_update))
 
-    print("\n" + t("updating_global"))
-    os.system("npm update -g")
+    # Update global packages
+    if global_to_update:
+        print("\n" + t("updating_global"))
+        for name in global_to_update:
+            print(f"  → {name}")
+        os.system("npm update -g " + " ".join(global_to_update))
 
     input("\n" + t("update_done"))
 
