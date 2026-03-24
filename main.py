@@ -11,7 +11,8 @@ from functools import lru_cache
 # =====================================================
 # CONFIG
 # =====================================================
-LOCALES_DIR = "locales"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LOCALES_DIR = os.path.join(SCRIPT_DIR, "locales")
 LANG = "en"
 STRINGS = {}
 DELAY = 2
