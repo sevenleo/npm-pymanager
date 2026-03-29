@@ -63,20 +63,18 @@ def load_language():
     print("  [1] English (default)")
     print("  [2] Português")
     print("  [3] Español")
-    print("\nChoose (Enter for English): ", end="", flush=True)
+    print("\nPress key (1/2/3) or Enter for default: ", end="", flush=True)
     
-    choice = ""
-    while True:
-        ch = getch()
-        if ch == "\n" or ch == "\r":
-            break
-        print(ch, end="", flush=True)
-        choice += ch
-    print()
+    ch = getch()
+    print(ch)  # eco da tecla pressionada
     
-    choice = choice.strip()
+    # Enter retorna \n ou \r, converte para string vazia
+    if ch == '\n' or ch == '\r':
+        ch = ''
+    
+    # Mapeamento direto com fallback para English
     mapping = {"1": "en", "2": "pt", "3": "es", "": "en"}
-    LANG = mapping.get(choice, "en")
+    LANG = mapping.get(ch, "en")  # fallback: qualquer tecla inválida → en
 
     path = os.path.join(LOCALES_DIR, f"{LANG}.json")
 
