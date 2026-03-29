@@ -20,7 +20,6 @@ LANG = "en"
 STRINGS = {}
 DELAY = 2
 SIZE_CACHE = {}
-TERMINAL_SIZE_CACHE = None
 
 # =====================================================
 # I18N
@@ -60,27 +59,14 @@ def get_terminal_size():
     Retorna: tuple (width, height)
     Fallback: (80, 24) se detecção falhar
     """
-    global TERMINAL_SIZE_CACHE
-    
-    if TERMINAL_SIZE_CACHE is not None:
-        return TERMINAL_SIZE_CACHE
-    
     try:
         size = os.get_terminal_size()
-        TERMINAL_SIZE_CACHE = (size.columns, size.lines)
-        return TERMINAL_SIZE_CACHE
+        return (size.columns, size.lines)
     except OSError:
         # Fallback para variáveis de ambiente
         width = int(os.environ.get("COLUMNS", 80))
         height = int(os.environ.get("LINES", 24))
-        TERMINAL_SIZE_CACHE = (width, height)
-        return TERMINAL_SIZE_CACHE
-
-
-def reset_terminal_cache():
-    """Reseta o cache do tamanho do terminal para forçar nova detecção."""
-    global TERMINAL_SIZE_CACHE
-    TERMINAL_SIZE_CACHE = None
+        return (width, height)
 
 
 def getch():
@@ -586,10 +572,9 @@ def update_all(rows):
             next_pkg = local_to_update[i] if i < len(local_to_update) else None
             if total_global > 0 and i == len(local_to_update):
                 next_pkg = global_to_update[0]
-            
-            reset_terminal_cache()  # força atualização do cache
+
             show_progress(i, total, name, next_package=next_pkg, prefix="LOCAL")
-            
+
             result = subprocess.run(["npm", "update", name])
             if result.returncode != 0:
                 all_ok = False
@@ -603,10 +588,9 @@ def update_all(rows):
         for i, name in enumerate(global_to_update, start=1):
             next_pkg = global_to_update[i] if i < len(global_to_update) else None
             actual_index = total_local + i
-            
-            reset_terminal_cache()  # força atualização do cache
+
             show_progress(actual_index, total, name, next_package=next_pkg, prefix="GLOBAL")
-            
+
             result = subprocess.run(["npm", "update", "-g", name])
             if result.returncode != 0:
                 all_ok = False
@@ -637,9 +621,8 @@ def update_one(row):
     if row["local_outdated"]:
         current += 1
         next_pkg = name if row["global_outdated"] else None
-        reset_terminal_cache()
         show_progress(current, total, name, next_package=next_pkg, prefix="LOCAL")
-        
+
         result = subprocess.run(["npm", "update", name])
         if result.returncode != 0:
             all_ok = False
@@ -649,9 +632,8 @@ def update_one(row):
 
     if row["global_outdated"]:
         current += 1
-        reset_terminal_cache()
         show_progress(current, total, name, next_package=None, prefix="GLOBAL")
-        
+
         result = subprocess.run(["npm", "update", "-g", name])
         if result.returncode != 0:
             all_ok = False
@@ -710,6 +692,7 @@ def main():
         print("\n" + t("options"))
         print("[a]", t("update_all"))
         print("[o]", t("update_one"))
+        print("[r]", t("refresh"))
         print("[q]", t("exit"))
 
         print("\n" + t("choose") + " ", end="", flush=True)
@@ -718,6 +701,11 @@ def main():
 
         if choice == "q":
             break
+
+        elif choice == "r":
+            # Refresh: limpa cache e recarrega dados
+            SIZE_CACHE.clear()
+            continue
 
         elif choice == "a":
             update_all(rows)

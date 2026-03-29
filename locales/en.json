@@ -9,6 +9,7 @@
   "update_all": "Update ALL packages",
   "update_one": "Update ONE package",
   "exit": "Exit",
+  "refresh": "Refresh package list",
   "choose": "Choose:",
   "enter_number": "Enter package number:",
   "invalid_number": "Invalid number.",

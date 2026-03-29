@@ -9,6 +9,7 @@
   "update_all": "Atualizar TODOS os pacotes",
   "update_one": "Atualizar UM pacote",
   "exit": "Sair",
+  "refresh": "Atualizar lista de pacotes",
   "choose": "Escolha:",
   "enter_number": "Digite o número do pacote:",
   "invalid_number": "Número inválido.",
