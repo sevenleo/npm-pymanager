@@ -5,10 +5,42 @@ import os
 import sys
 import time
 import shutil
-import tty
-import termios
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
+
+
+# =====================================================
+# PLATFORM COMPATIBILITY
+# =====================================================
+IS_WINDOWS = os.name == "nt"
+
+if not IS_WINDOWS:
+    import tty
+    import termios
+
+
+def getch():
+    """
+    Lê um único caractere do teclado sem precisar pressionar Enter.
+    Funciona em Windows, Linux e Mac.
+    """
+    if IS_WINDOWS:
+        import msvcrt
+        ch = msvcrt.getch().decode('utf-8', errors='ignore')
+        # Handle special keys on Windows
+        if ch == '\xe0':  # Arrow/function key prefix
+            msvcrt.getch()  # consume second byte
+            return ''
+        return ch
+    else:
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
 
 
 # =====================================================
@@ -77,21 +109,6 @@ def get_terminal_size():
         width = int(os.environ.get("COLUMNS", 80))
         height = int(os.environ.get("LINES", 24))
         return (width, height)
-
-
-def getch():
-    """
-    Lê um único caractere do teclado sem precisar pressionar Enter.
-    Funciona em terminais Unix/Linux/Mac.
-    """
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(fd)
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return ch
 
 
 def truncate_string(text, max_width, mode="end"):
@@ -557,6 +574,29 @@ def _print_table_ultra_compact(rows, terminal_width):
         print()
 
 
+def run_npm_cmd(args):
+    """
+    Executa comando npm com compatibilidade Windows/Linux/Mac.
+    
+    Args:
+        args: lista de argumentos do comando npm
+    
+    Returns:
+        True se exitcode == 0, False caso contrário
+    """
+    try:
+        # Windows precisa de shell=True para encontrar npm no PATH
+        result = subprocess.run(
+            args,
+            shell=IS_WINDOWS,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 # =====================================================
 # UPDATE
 # =====================================================
@@ -585,8 +625,8 @@ def update_all(rows):
 
             show_progress(i, total, name, next_package=next_pkg, prefix="LOCAL")
 
-            result = subprocess.run(["npm", "update", name])
-            if result.returncode != 0:
+            success = run_npm_cmd(["npm", "update", name])
+            if not success:
                 all_ok = False
                 print(f"    {t('update_failed_symbol')} {name}")
             else:
@@ -601,8 +641,8 @@ def update_all(rows):
 
             show_progress(actual_index, total, name, next_package=next_pkg, prefix="GLOBAL")
 
-            result = subprocess.run(["npm", "update", "-g", name])
-            if result.returncode != 0:
+            success = run_npm_cmd(["npm", "update", "-g", name])
+            if not success:
                 all_ok = False
                 print(f"    {t('update_failed_symbol')} {name}")
             else:
@@ -633,8 +673,8 @@ def update_one(row):
         next_pkg = name if row["global_outdated"] else None
         show_progress(current, total, name, next_package=next_pkg, prefix="LOCAL")
 
-        result = subprocess.run(["npm", "update", name])
-        if result.returncode != 0:
+        success = run_npm_cmd(["npm", "update", name])
+        if not success:
             all_ok = False
             print(f"    {t('update_failed_symbol')} {name}")
         else:
@@ -644,8 +684,8 @@ def update_one(row):
         current += 1
         show_progress(current, total, name, next_package=None, prefix="GLOBAL")
 
-        result = subprocess.run(["npm", "update", "-g", name])
-        if result.returncode != 0:
+        success = run_npm_cmd(["npm", "update", "-g", name])
+        if not success:
             all_ok = False
             print(f"    {t('update_failed_symbol')} {name}")
         else:
