@@ -27,5 +27,19 @@
   "already_updated": "Este pacote já está atualizado.",
   "nothing_to_update": "Não há pacotes para atualizar.",
   "update_done": "Atualização concluída.",
-  "update_failed": "Um ou mais comandos de atualização falharam."
+  "update_failed": "Um ou mais comandos de atualização falharam.",
+  "terminal_size": "Terminal: {width}x{height}",
+  "total_packages": "Total de pacotes: {total}",
+  "local_outdated_count": "Locais desatualizados: {count}",
+  "global_outdated_count": "Globais desatualizados: {count}",
+  "updating_package": "Atualizando pacote",
+  "next_package": "Próximo",
+  "progress": "Progresso",
+  "of": "de",
+  "compact_mode": "MODO COMPACTO",
+  "package_truncated": "(truncado)",
+  "screen_too_small": "Terminal muito estreito. Considere aumentar a janela.",
+  "update_success": "✓",
+  "update_failed_symbol": "✗",
+  "update_processing": "⟳"
 }

@@ -27,5 +27,19 @@
   "already_updated": "This package is already up to date.",
   "nothing_to_update": "There are no packages to update.",
   "update_done": "Update finished.",
-  "update_failed": "One or more update commands failed."
+  "update_failed": "One or more update commands failed.",
+  "terminal_size": "Terminal: {width}x{height}",
+  "total_packages": "Total packages: {total}",
+  "local_outdated_count": "Local outdated: {count}",
+  "global_outdated_count": "Global outdated: {count}",
+  "updating_package": "Updating package",
+  "next_package": "Next",
+  "progress": "Progress",
+  "of": "of",
+  "compact_mode": "COMPACT MODE",
+  "package_truncated": "(truncated)",
+  "screen_too_small": "Terminal too narrow. Consider widening the window.",
+  "update_success": "✓",
+  "update_failed_symbol": "✗",
+  "update_processing": "⟳"
 }
