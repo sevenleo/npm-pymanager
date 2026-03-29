@@ -15,6 +15,10 @@ It shows installed versions, available updates, and package size, then lets you 
 - Supports English, Portuguese, and Spanish
 - Updates only packages that are actually outdated
 - Refreshes the table automatically after each update cycle
+- **Responsive UI** that adapts to any terminal size automatically
+- **Visual progress bar** during package updates
+- **Instant keyboard controls** - no Enter key needed for menu actions
+- **Cross-platform support** for Windows, Linux, and macOS
 
 ## Performance Notes
 
@@ -49,6 +53,7 @@ python --version
 ```text
 project/
 ├── main.py
+├── ui/
 └── locales/
     ├── en.json
     ├── pt.json
@@ -104,13 +109,14 @@ Run the script from the repository root:
 python main.py
 ```
 
-Select a language:
+### Language Selection
 
-1. English
-2. Português
-3. Español
+Quick language selection with instant input:
 
-Then wait for package data to load.
+- Press `1` + `Enter` for English (default)
+- Press `2` + `Enter` for Português
+- Press `3` + `Enter` for Español
+- Press `Enter` alone selects English (default)
 
 Note:
 
@@ -139,9 +145,21 @@ Outdated entries are marked with `(u)` beside the installed version.
 
 | Key | Action |
 | --- | --- |
-| `a` | Update all outdated packages |
-| `o` | Update one package by number |
-| `q` | Exit |
+| `a` | Update all outdated packages (instant, no Enter needed) |
+| `o` | Update one package by number (instant, no Enter needed) |
+| `r` | Refresh package list (instant, no Enter needed) |
+| `q` | Exit (instant, no Enter needed) |
+
+### Instant Keyboard Controls
+
+Menu actions use single-key input - just press the key without needing to hit Enter:
+
+- Press `a` to immediately start updating all outdated packages
+- Press `o` to immediately enter package selection mode
+- Press `r` to immediately refresh the package list
+- Press `q` to immediately exit
+
+Only package number selection requires typing a number followed by Enter.
 
 ### Update all
 
@@ -165,17 +183,110 @@ The app updates only the outdated scope(s) for that package:
 
 If the selected package is already current in both scopes, the app shows an "already updated" message and returns to the menu.
 
+### Refresh
+
+Press `r` to refresh the package list:
+
+- Clears size cache
+- Re-detects terminal dimensions
+- Reloads package data from npm
+- Re-renders the table with current information
+
+Use this when you've installed/uninstalled packages externally and want to see updated data.
+
+---
+
+## Responsive UI
+
+The interface automatically adapts to your terminal size, providing an optimal viewing experience on any screen:
+
+### Display Modes
+
+The table layout changes based on terminal width:
+
+| Mode | Terminal Width | Behavior |
+| --- | --- | --- |
+| **Full** | ≥100 columns | Complete table with all columns at full width |
+| **Standard** | 80-99 columns | Slightly condensed, all columns visible |
+| **Compact** | 60-79 columns | Truncated package names, optimized spacing |
+| **Ultra-Compact** | <60 columns | Minimal layout, aggressive truncation |
+
+### Smart Features
+
+- **Automatic detection**: Terminal dimensions are detected on startup and every refresh
+- **Dynamic resizing**: Table re-renders automatically when terminal is resized
+- **Smart truncation**: Long package names are truncated with `...` to fit available space
+- **Height adaptation**: Number of visible rows adjusts to terminal height
+
+This ensures the tool works comfortably on small laptop terminals, large desktop screens, and everything in between.
+
+---
+
+## Progress Feedback
+
+During package updates, a visual progress indicator keeps you informed:
+
+### Progress Bar
+
+```
+[=====>    ] 45% [3/7] updating: lodash...
+```
+
+Components:
+
+- **Visual bar**: `[=====>    ]` shows completion percentage graphically
+- **Counter**: `[X/Y]` displays current package out of total
+- **Percentage**: Numeric percentage for precise tracking
+- **Current package**: Shows which package is being updated
+- **Next package**: Preview of what's coming next
+
+### Status Symbols
+
+- `✓` - Update completed successfully
+- `✗` - Update failed
+
+This feedback system provides clear visibility into the update process, making it easy to track progress and identify any issues.
+
+---
+
+## Cross-Platform Compatibility
+
+The application runs seamlessly on Windows, Linux, and macOS with automatic platform detection:
+
+### Platform-Specific Optimizations
+
+**Windows:**
+- Uses `msvcrt` for keyboard input handling
+- npm commands executed with `shell=True` for proper PATH resolution
+- ANSI escape codes handled correctly for progress indicators
+
+**Linux/macOS:**
+- Uses `tty` and `termios` for instant keyboard input
+- Standard POSIX terminal handling
+- Native ANSI support for visual elements
+
+### Automatic Detection
+
+The app detects your operating system at runtime and configures:
+
+- Input method (instant key press vs buffered)
+- Command execution strategy
+- Terminal control sequences
+
+This ensures consistent behavior across all platforms without requiring manual configuration.
+
 ---
 
 ## Error Handling
 
 Current behavior:
 
-- invalid menu input shows an `invalid option` message
-- invalid package number shows an `invalid number` message
-- invalid JSON from npm list/outdated becomes an empty result
-- failed update commands show `update_failed`
-- Unicode-only symbols were removed from the update flow to avoid crashes in Windows terminals with ANSI code pages
+- Invalid menu input shows an `invalid option` message
+- Invalid package number shows an `invalid number` message
+- Invalid JSON from npm list/outdated becomes an empty result
+- Failed update commands show `update_failed`
+- Cross-platform compatibility prevents Unicode crashes on Windows terminals with ANSI code pages
+- Graceful fallback when terminal size detection fails
 
 ---
 
@@ -191,8 +302,8 @@ locales/es.json
 
 Adding a new language requires:
 
-1. creating a new locale JSON file
-2. adding it to the language selection mapping in `main.py`
+1. Creating a new locale JSON file
+2. Adding it to the language selection mapping in `main.py`
 
 ---
 
@@ -201,16 +312,6 @@ Adding a new language requires:
 - There is no automated test suite yet
 - Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time on the first load
 - The tool assumes `npm` commands are available in the current shell environment
-
----
-
-## Possible Next Improvements
-
-- Search/filter by package name
-- Sorting by version, update status, or size
-- Optional lazy loading for size values
-- Better error reporting when `npm` itself is unavailable
-- Rich/Textual-based navigation instead of plain `input()`
 
 ---
 
