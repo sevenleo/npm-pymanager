@@ -28,12 +28,22 @@ def load_language():
     global LANG, STRINGS
 
     print("Select language / Selecione idioma / Seleccione idioma")
-    print("1. English")
-    print("2. Português")
-    print("3. Español")
-
-    choice = input("> ").strip()
-    mapping = {"1": "en", "2": "pt", "3": "es"}
+    print("  [1] English (default)")
+    print("  [2] Português")
+    print("  [3] Español")
+    print("\nChoose (Enter for English): ", end="", flush=True)
+    
+    choice = ""
+    while True:
+        ch = getch()
+        if ch == "\n" or ch == "\r":
+            break
+        print(ch, end="", flush=True)
+        choice += ch
+    print()
+    
+    choice = choice.strip()
+    mapping = {"1": "en", "2": "pt", "3": "es", "": "en"}
     LANG = mapping.get(choice, "en")
 
     path = os.path.join(LOCALES_DIR, f"{LANG}.json")
