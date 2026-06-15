@@ -42,5 +42,6 @@
   "screen_too_small": "Terminal muy estrecho. Considere ampliar la ventana.",
   "update_success": "✓",
   "update_failed_symbol": "✗",
-  "update_processing": "⟳"
+  "update_processing": "⟳",
+  "confirm_update_all": "Actualizar todos los paquetes desactualizados? (y/n)"
 }

@@ -4,7 +4,6 @@ import json
 import os
 import sys
 import time
-import shutil
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
@@ -745,20 +744,26 @@ def main():
 
         print("\n" + t("choose") + " ", end="", flush=True)
         choice = getch().strip().lower()
-        print(choice)  # ecoa a tecla pressionada
 
         if choice == "q":
+            print(choice)
             break
 
         elif choice == "r":
-            # Refresh: limpa cache e recarrega dados
+            print(choice)
             SIZE_CACHE.clear()
             continue
 
         elif choice == "a":
-            update_all(rows)
+            print(choice)
+            print(t("confirm_update_all") + " ", end="", flush=True)
+            confirm = getch().strip().lower()
+            print(confirm)
+            if confirm == "y":
+                update_all(rows)
 
         elif choice == "o":
+            print(choice)
             print(t("enter_number") + " ", end="", flush=True)
             num_str = ""
             while True:
@@ -768,7 +773,7 @@ def main():
                 print(ch, end="", flush=True)
                 num_str += ch
             print()
-            
+
             try:
                 num = int(num_str.strip())
                 row = next(r for r in rows if r["id"] == num)
@@ -778,7 +783,25 @@ def main():
                 continue
 
             update_one(row)
+        elif choice.isdigit():
+            num_str = choice
+            print(choice, end="", flush=True)
+            while True:
+                ch = getch()
+                if ch == "\n" or ch == "\r":
+                    break
+                print(ch, end="", flush=True)
+                num_str += ch
+            print()
+            try:
+                num = int(num_str.strip())
+                row = next(r for r in rows if r["id"] == num)
+                update_one(row)
+            except (TypeError, ValueError, StopIteration):
+                print(t("invalid_number"))
+                time.sleep(DELAY)
         else:
+            print(choice)
             print(t("invalid_option"))
             time.sleep(DELAY)
 

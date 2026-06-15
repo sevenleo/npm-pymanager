@@ -18,6 +18,8 @@ It shows installed versions, available updates, and package size, then lets you 
 - **Responsive UI** that adapts to any terminal size automatically
 - **Visual progress bar** during package updates
 - **Instant keyboard controls** - no Enter key needed for menu actions
+- **Direct number input** - type a package number at the menu to update it directly
+- **Update All confirmation** - y/n prompt before updating all packages
 - **Cross-platform support** for Windows, Linux, and macOS
 
 ## Performance Notes
@@ -145,8 +147,9 @@ Outdated entries are marked with `(u)` beside the installed version.
 
 | Key | Action |
 | --- | --- |
-| `a` | Update all outdated packages (instant, no Enter needed) |
-| `o` | Update one package by number (instant, no Enter needed) |
+| `a` | Update all outdated packages with y/n confirmation (instant) |
+| `o` | Update one package by number (instant, then type number + Enter) |
+| `1-9` | Direct number input - type package number + Enter to update |
 | `r` | Refresh package list (instant, no Enter needed) |
 | `q` | Exit (instant, no Enter needed) |
 
@@ -154,16 +157,24 @@ Outdated entries are marked with `(u)` beside the installed version.
 
 Menu actions use single-key input - just press the key without needing to hit Enter:
 
-- Press `a` to immediately start updating all outdated packages
+- Press `a` to ask for confirmation before updating all outdated packages
 - Press `o` to immediately enter package selection mode
 - Press `r` to immediately refresh the package list
 - Press `q` to immediately exit
 
-Only package number selection requires typing a number followed by Enter.
+Package number selection (via `o` or direct number input) requires typing a number followed by Enter. Multi-digit numbers (e.g., 10, 99) work correctly.
+
+### Direct Number Input
+
+You can type a package number directly at the main menu without pressing `o` first:
+
+- Type `3` + `Enter` to update package #3
+- Type `1` + `0` + `Enter` to update package #10
+- Invalid numbers show an error message
 
 ### Update all
 
-Press `a` to update every outdated package found in the current screen.
+Press `a` to update every outdated package. The app asks for confirmation (`y/n`) before proceeding.
 
 The app:
 
@@ -287,6 +298,7 @@ Current behavior:
 - Failed update commands show `update_failed`
 - Cross-platform compatibility prevents Unicode crashes on Windows terminals with ANSI code pages
 - Graceful fallback when terminal size detection fails
+- Update All confirmation cancels on any key other than `y`
 
 ---
 
@@ -304,6 +316,10 @@ Adding a new language requires:
 
 1. Creating a new locale JSON file
 2. Adding it to the language selection mapping in `main.py`
+
+### Locale Keys (45 per file)
+
+All user-facing strings including table headers, menu options, progress bar labels, error messages, and the `confirm_update_all` prompt.
 
 ---
 
