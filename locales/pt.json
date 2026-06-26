@@ -35,6 +35,7 @@
   "global_outdated_count": "Globais desatualizados: {count}",
   "updating_package": "Atualizando pacote",
   "next_package": "Próximo",
+  "loading_sizes": "Calculando tamanhos dos pacotes..."
   "progress": "Progresso",
   "of": "de",
   "compact_mode": "MODO COMPACTO",

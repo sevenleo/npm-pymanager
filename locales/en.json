@@ -35,6 +35,7 @@
   "global_outdated_count": "Global outdated: {count}",
   "updating_package": "Updating package",
   "next_package": "Next",
+  "loading_sizes": "Calculating package sizes..."
   "progress": "Progress",
   "of": "of",
   "compact_mode": "COMPACT MODE",
