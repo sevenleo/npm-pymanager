@@ -9,7 +9,7 @@ It shows installed versions, available updates, and package size, then lets you 
 ## Features
 
 - Displays local and global npm packages in one merged table
-- Highlights outdated packages with `(u)`
+- Highlights outdated packages with a `[update]` STATUS label (calm color, `[ok]` when current)
 - Shows installed version and latest available version for each scope
 - Calculates disk usage for local and global installs in a single `SIZE` column
 - Supports English, Portuguese, and Spanish
@@ -111,6 +111,18 @@ Run the script from the repository root:
 python main.py
 ```
 
+### Demo mode (fictitious data)
+
+Preview the interface without touching npm:
+
+```bash
+python main.py --test
+```
+
+- Shows 10 fictitious packages: 4 up to date, 5 needing update, 1 (`left-pad`) that fails with `[x]`
+- Updates are simulated (~0.4s each) — no real `npm update` runs, no files change
+- Combines with `--no-color`; language selection still appears first
+
 ### Language Selection
 
 Quick language selection with instant input:
@@ -138,8 +150,9 @@ Note:
 | `LOCAL_VERSION` | Installed local version |
 | `LOCAL_NEW` | Latest version available for the local install |
 | `SIZE` | Combined size view for local/global installs |
+| `STATUS` | `[ok]` when current, `[update]` when any scope is outdated |
 
-Outdated entries are marked with `(u)` beside the installed version.
+Outdated entries are marked with `[update]` in the STATUS column. In compact mode (60-79 columns) versions are combined as `1.2.3 -> 1.3.0`.
 
 ---
 
@@ -217,17 +230,18 @@ The table layout changes based on terminal width:
 
 | Mode | Terminal Width | Behavior |
 | --- | --- | --- |
-| **Full** | ≥100 columns | Complete table with all columns at full width |
-| **Standard** | 80-99 columns | Slightly condensed, all columns visible |
-| **Compact** | 60-79 columns | Truncated package names, optimized spacing |
-| **Ultra-Compact** | <60 columns | Minimal layout, aggressive truncation |
+| **Full** | ≥80 columns | Complete table with all columns plus a STATUS column (`[ok]` / `[update]`) |
+| **Compact** | 60-79 columns | Combined versions (`1.2.3 -> 1.3.0`), STATUS kept at the end of the line |
+| **Ultra-Compact** | <60 columns | Vertical card list, one block per package |
 
 ### Smart Features
 
 - **Automatic detection**: Terminal dimensions are detected on startup and every refresh
 - **Dynamic resizing**: Table re-renders automatically when terminal is resized
 - **Smart truncation**: Long package names are truncated with `...` to fit available space
-- **Height adaptation**: Number of visible rows adjusts to terminal height
+- **Calm color**: color is used only for status labels; everything else stays default
+- **No-color support**: `NO_COLOR=1`, `--no-color`, `TERM=dumb`, or piped output disables all ANSI codes
+- **ASCII fallback**: `NPM_PM_ASCII=1` or non-UTF8 terminals use `-`, `->`, `[ok]` instead of `─`, `→`, `✓`
 
 This ensures the tool works comfortably on small laptop terminals, large desktop screens, and everything in between.
 
@@ -240,21 +254,38 @@ During package updates, a visual progress indicator keeps you informed:
 ### Progress Bar
 
 ```
-[=====>    ] 45% [3/7] updating: lodash...
+[████████░░░░░░░░] 3/7 (43%)
+Updating package: LOCAL: commander
+Next: express
+────────────────────────────────
+[ok] [L] axios
+[ok] [L] chalk
+[>]  [L] commander
+[ ]  [L] express
+... 3 more below
 ```
+
+- **Pinned bar**: in interactive terminals a single bar stays at the top and updates in place — no repeated bars
+- **Viewport list**: one row per package (`[L]`/`[G]` scope + name only); done show `[ok]`, current `[>]`, pending `[ ]`, failed `[x]`
+- **No scrolling**: the list is a window centered on the current package sized to your terminal height, with `... N more above/below` indicators when it doesn't all fit
+- **Piped output**: without a TTY each step is logged sequentially instead (same info, no cursor codes)
 
 Components:
 
-- **Visual bar**: `[=====>    ]` shows completion percentage graphically
+- **Visual bar**: thin block bar (`█`/`░`, ASCII `=`/`-` fallback) sized to the terminal
 - **Counter**: `[X/Y]` displays current package out of total
 - **Percentage**: Numeric percentage for precise tracking
 - **Current package**: Shows which package is being updated
-- **Next package**: Preview of what's coming next
+- **Next package**: Preview of what's coming next (muted)
+
+A spinner is shown while npm data is being collected, so the screen never looks frozen.
 
 ### Status Symbols
 
-- `✓` - Update completed successfully
-- `✗` - Update failed
+- `[ok]` (green) - up to date / update succeeded
+- `[update]` (yellow) - needs update
+- `[!]` (yellow) - warning (invalid input, narrow terminal)
+- `[x]` (red) - update failed
 
 This feedback system provides clear visibility into the update process, making it easy to track progress and identify any issues.
 

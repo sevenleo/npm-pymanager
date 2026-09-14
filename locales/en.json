@@ -35,7 +35,15 @@
   "global_outdated_count": "Global outdated: {count}",
   "updating_package": "Updating package",
   "next_package": "Next",
-  "loading_sizes": "Calculating package sizes..."
+  "loading_sizes": "Calculating package sizes...",
+  "summary_to_update": "to update",
+  "summary_ok": "ok",
+  "status_ok": "ok",
+  "status_update": "update",
+  "cancelled": "Cancelled.",
+  "demo_mode": "DEMO MODE - fictitious data, no real updates.",
+  "more_above": "... {count} more above",
+  "more_below": "... {count} more below",
   "progress": "Progress",
   "of": "of",
   "compact_mode": "COMPACT MODE",
@@ -44,5 +52,5 @@
   "update_success": "✓",
   "update_failed_symbol": "✗",
   "update_processing": "⟳",
-  "confirm_update_all": "Update all outdated packages? (y/n)"
+  "confirm_update_all": "Update all outdated packages?"
 }

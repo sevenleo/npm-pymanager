@@ -35,6 +35,15 @@
   "global_outdated_count": "Globales desactualizados: {count}",
   "updating_package": "Actualizando paquete",
   "next_package": "Siguiente",
+  "loading_sizes": "Calculando tamaños de los paquetes...",
+  "summary_to_update": "para actualizar",
+  "summary_ok": "ok",
+  "status_ok": "ok",
+  "status_update": "actualizar",
+  "cancelled": "Cancelado.",
+  "demo_mode": "MODO DEMO - datos ficticios, sin actualizaciones reales.",
+  "more_above": "... {count} más arriba",
+  "more_below": "... {count} más abajo",
   "progress": "Progreso",
   "of": "de",
   "compact_mode": "MODO COMPACTO",
@@ -43,5 +52,5 @@
   "update_success": "✓",
   "update_failed_symbol": "✗",
   "update_processing": "⟳",
-  "confirm_update_all": "Actualizar todos los paquetes desactualizados? (y/n)"
+  "confirm_update_all": "Actualizar todos los paquetes desactualizados?"
 }
