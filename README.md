@@ -16,10 +16,13 @@ It shows installed versions, available updates, and package size, then lets you 
 - Updates only packages that are actually outdated
 - Refreshes the table automatically after each update cycle
 - **Responsive UI** that adapts to any terminal size automatically
-- **Visual progress bar** during package updates
-- **Instant keyboard controls** - no Enter key needed for menu actions
+- **Pinned progress bar** with a scrolling viewport list during updates (no repeated bars, no terminal scroll)
+- **Instant keyboard controls** - no Enter key needed for menu actions; arrows and special keys are silently ignored
 - **Direct number input** - type a package number at the menu to update it directly
-- **Update All confirmation** - y/n prompt before updating all packages
+- **Update All confirmation** - `(y/N)` prompt before updating all packages
+- **Demo mode** (`--test`) - 10 fictitious packages to preview the UI without touching npm
+- **Cached data loop** - fetches once and reuses; refetches on demand, after updates, or when stale (TTL)
+- **Timeout-safe npm calls** - every command has a timeout and fails soft with a warning
 - **Cross-platform support** for Windows, Linux, and macOS
 
 ## Performance Notes
@@ -66,12 +69,15 @@ python --version
 ```text
 project/
 ├── main.py
-├── ui/
-└── locales/
-    ├── en.json
-    ├── pt.json
-    └── es.json
+├── locales/
+│   ├── en.json
+│   ├── pt.json
+│   └── es.json
+├── CHANGELOG.md
+└── package-lock.json
 ```
+
+See `CHANGELOG.md` for the history of changes.
 
 ---
 
@@ -83,12 +89,12 @@ The app collects:
 
 - `npm list --depth=0 --json` for local packages
 - `npm list -g --depth=0 --json` for global packages
-- `npm outdated --json` for local outdated packages
+- `npm outdated --depth=0 --json` for local outdated packages
 - `npm outdated -g --depth=0 --json` for global outdated packages
 
 Hidden/private packages whose names start with `.` are filtered out.
 
-If `npm list` or `npm outdated` returns invalid or empty JSON, the app falls back to an empty result instead of crashing.
+If `npm list` or `npm outdated` returns invalid or empty JSON — or times out — the app falls back to an empty result instead of crashing. On timeouts a warning is shown and the last known data is kept on screen.
 
 ### Size calculation
 
@@ -108,9 +114,9 @@ Display behavior:
 When updating, the application:
 
 - updates only packages flagged as outdated
-- runs local and global updates separately
+- runs them as one task list with per-row scope tags (`[L]`/`[G]`), locals first
 - reports success only if the underlying `npm update` command returns exit code `0`
-- shows a failure message if one or more update commands fail
+- lists every failed package at the end plus a failure message if one or more update commands fail or time out
 
 ---
 
@@ -136,11 +142,11 @@ python main.py --test
 
 ### Language Selection
 
-Quick language selection with instant input:
+Quick language selection with instant input (single keypress, no Enter):
 
-- Press `1` + `Enter` for English (default)
-- Press `2` + `Enter` for Português
-- Press `3` + `Enter` for Español
+- Press `1` for English (default)
+- Press `2` for Português
+- Press `3` for Español
 - Press `Enter` alone selects English (default)
 
 Note:
@@ -171,11 +177,13 @@ Outdated entries are marked with `[update]` in the STATUS column. In compact mod
 
 | Key | Action |
 | --- | --- |
-| `a` | Update all outdated packages with y/n confirmation (instant) |
+| `a` | Update all outdated packages with `(y/N)` confirmation (instant) |
 | `o` | Update one package by number (instant, then type number + Enter) |
 | `1-9` | Direct number input - type package number + Enter to update |
 | `r` | Refresh package list (instant, no Enter needed) |
 | `q` | Exit (instant, no Enter needed) |
+
+Arrow keys, Delete, End, PageUp/PageDown, function keys and a stray `Enter` are silently ignored everywhere — they never trigger actions or errors.
 
 ### Instant Keyboard Controls
 
@@ -198,13 +206,13 @@ You can type a package number directly at the main menu without pressing `o` fir
 
 ### Update all
 
-Press `a` to update every outdated package. The app asks for confirmation (`y/n`) before proceeding.
+Press `a` to update every outdated package. The app asks for confirmation (`(y/N)`, default `N`) before proceeding.
 
 The app:
 
-- lists outdated local packages first
-- lists outdated global packages second
+- updates outdated local packages first, then global ones
 - executes only the required `npm update` commands
+- refetches the package list once when finished
 
 ### Update one
 
@@ -220,14 +228,16 @@ If the selected package is already current in both scopes, the app shows an "alr
 
 ### Refresh
 
-Press `r` to refresh the package list:
+Press `r` to force a refresh of the package list:
 
-- Clears size cache
+- Keeps cached sizes (keyed by scope, name and version — unchanged packages are not remeasured)
 - Re-detects terminal dimensions
 - Reloads package data from npm
 - Re-renders the table with current information
 
-Use this when you've installed/uninstalled packages externally and want to see updated data.
+Without `r`, data is reused automatically and only refetched after an update or when older than the TTL (`NPM_PM_TTL`, default 120s).
+
+Use `r` when you've installed/uninstalled packages externally and want to see updated data.
 
 ---
 
@@ -295,7 +305,9 @@ A spinner is shown while npm data is being collected, so the screen never looks 
 
 - `[ok]` (green) - up to date / update succeeded
 - `[update]` (yellow) - needs update
-- `[!]` (yellow) - warning (invalid input, narrow terminal)
+- `[>]` (yellow) - package currently updating
+- `[ ]` (muted) - pending in the update queue
+- `[!]` (yellow) - warning (invalid input, narrow terminal, demo mode, npm timeout)
 - `[x]` (red) - update failed
 
 This feedback system provides clear visibility into the update process, making it easy to track progress and identify any issues.
@@ -309,9 +321,9 @@ The application runs seamlessly on Windows, Linux, and macOS with automatic plat
 ### Platform-Specific Optimizations
 
 **Windows:**
-- Uses `msvcrt` for keyboard input handling
+- Uses `msvcrt` for keyboard input handling, comparing raw bytes so arrow/function keys (which arrive as prefix + scan code) are discarded instead of leaking as letters
 - npm commands executed with `shell=True` for proper PATH resolution
-- ANSI escape codes handled correctly for progress indicators
+- ANSI escape codes handled correctly for progress indicators (VT mode enabled; graceful fallback without it)
 
 **Linux/macOS:**
 - Uses `tty` and `termios` for instant keyboard input
@@ -334,11 +346,12 @@ This ensures consistent behavior across all platforms without requiring manual c
 
 Current behavior:
 
-- Invalid menu input shows an `invalid option` message
-- Invalid package number shows an `invalid number` message
+- Invalid menu input shows an `invalid option` message with a short pause (arrows/special keys are ignored silently and never reach this path)
+- Invalid package number shows an `invalid number` message with a short pause
 - Invalid JSON from npm list/outdated becomes an empty result
-- Failed update commands show `update_failed`
-- Cross-platform compatibility prevents Unicode crashes on Windows terminals with ANSI code pages
+- npm commands that exceed their timeout fail soft (empty result / `False`) with an `npm_timeout` warning; update timeouts are also listed as failed packages
+- Failed update commands are listed by name plus `update_failed`
+- Unicode fallbacks (ASCII) prevent crashes on Windows terminals with legacy code pages
 - Graceful fallback when terminal size detection fails
 - Update All confirmation cancels on any key other than `y`
 
@@ -359,16 +372,17 @@ Adding a new language requires:
 1. Creating a new locale JSON file
 2. Adding it to the language selection mapping in `main.py`
 
-### Locale Keys (45 per file)
+### Locale Keys (55 per file)
 
-All user-facing strings including table headers, menu options, progress bar labels, error messages, and the `confirm_update_all` prompt.
+All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels and the `confirm_update_all` prompt. Keep the three files in sync — every `t()` key must exist in all of them.
 
 ---
 
 ## Limitations
 
 - There is no automated test suite yet
-- Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time on the first load
+- Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time on the first load (later loads reuse the session cache)
+- `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment
 
 ---

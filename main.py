@@ -141,11 +141,11 @@ def load_language():
             continue  # setas e especiais: espera tecla válida em silêncio
         break
     print(ch)  # eco da tecla pressionada
-    
+
     # Enter retorna \n ou \r, converte para string vazia
     if ch == '\n' or ch == '\r':
         ch = ''
-    
+
     # Mapeamento direto com fallback para English
     mapping = {"1": "en", "2": "pt", "3": "es", "": "en"}
     LANG = mapping.get(ch, "en")  # fallback: qualquer tecla inválida → en
@@ -444,24 +444,24 @@ def get_terminal_size():
 def truncate_string(text, max_width, mode="end"):
     """
     Trunca string para caber na largura máxima.
-    
+
     Args:
         text: texto a ser truncado
         max_width: largura máxima permitida
         mode: 'end' (final truncado), 'middle' (meio truncado), 'start' (início truncado)
-    
+
     Returns:
         texto truncado com indicador visual (...)
     """
     if not text or len(text) <= max_width:
         return text
-    
+
     if max_width <= 3:
         return text[:max_width]
-    
+
     indicator = "..."
     content_width = max_width - len(indicator)
-    
+
     if mode == "end":
         return text[:content_width] + indicator
     elif mode == "middle":
@@ -765,12 +765,12 @@ def _combined_version(current, latest):
 def calculate_column_widths(terminal_width, rows, headers):
     """
     Calcula larguras ótimas para cada coluna baseado no espaço disponível.
-    
+
     Args:
         terminal_width: largura total do terminal
         rows: lista de dicionários com dados dos pacotes
         headers: lista de cabeçalhos das colunas
-    
+
     Returns:
         lista de larguras para cada coluna
     """
@@ -892,7 +892,7 @@ def npm_list(global_mode=False):
         return {}
 
     deps = data.get("dependencies", {})
-    
+
     # Filter out hidden/private packages (starting with .)
     return {name: info for name, info in deps.items() if not name.startswith(".")}
 
@@ -1163,7 +1163,7 @@ def print_table_responsive(rows, terminal_width=None):
         t("local_version"),
         t("local_new"),
         t("size"),
-        "STATUS",
+        t("status"),
     ]
 
     # Calcula larguras dinâmicas

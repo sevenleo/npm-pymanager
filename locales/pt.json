@@ -45,6 +45,7 @@
   "more_above": "... mais {count} acima",
   "more_below": "... mais {count} abaixo",
   "npm_timeout": "Comando npm expirou (rede lenta?). Mostrando últimos dados.",
+  "status": "STATUS",
   "progress": "Progresso",
   "of": "de",
   "compact_mode": "MODO COMPACTO",

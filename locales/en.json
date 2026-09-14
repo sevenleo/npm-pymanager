@@ -45,6 +45,7 @@
   "more_above": "... {count} more above",
   "more_below": "... {count} more below",
   "npm_timeout": "npm command timed out (slow network?). Showing last known data.",
+  "status": "STATUS",
   "progress": "Progress",
   "of": "of",
   "compact_mode": "COMPACT MODE",

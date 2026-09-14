@@ -1,2 +1,34 @@
-/__pycache__
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python tooling and environments
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# Node / npm — dependencies are read at runtime, never committed
+# (the skeleton package-lock.json IS tracked on purpose; do not modify it)
+node_modules/
+npm-debug.log*
+.npm/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local leftovers
 plan.txt
+*.log
