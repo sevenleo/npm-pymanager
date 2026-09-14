@@ -44,6 +44,7 @@
   "demo_mode": "MODO DEMO - dados ficticios, sem atualizacoes reais.",
   "more_above": "... mais {count} acima",
   "more_below": "... mais {count} abaixo",
+  "npm_timeout": "Comando npm expirou (rede lenta?). Mostrando últimos dados.",
   "progress": "Progresso",
   "of": "de",
   "compact_mode": "MODO COMPACTO",

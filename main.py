@@ -108,7 +108,11 @@ LOCALES_DIR = os.path.join(SCRIPT_DIR, "locales")
 LANG = "en"
 STRINGS = {}
 DELAY = int(os.environ.get("NPM_PM_DELAY", 2))
+NPM_TIMEOUT = int(os.environ.get("NPM_PM_TIMEOUT", 90))
+NPM_UPDATE_TIMEOUT = int(os.environ.get("NPM_PM_UPDATE_TIMEOUT", 300))
+CACHE_TTL = int(os.environ.get("NPM_PM_TTL", 120))
 SIZE_CACHE = {}
+_TIMED_OUT = []
 COLOR_ENABLED = True
 USE_UNICODE = True
 DEMO_MODE = "--test" in sys.argv
@@ -856,13 +860,20 @@ def calculate_column_widths(terminal_width, rows, headers):
 # NPM HELPERS
 # =====================================================
 def run(cmd):
-    result = subprocess.run(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        shell=True,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            shell=True,
+            timeout=NPM_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        _TIMED_OUT.append(cmd)
+        return ""
+    except Exception:
+        return ""
     return result.stdout.strip()
 
 
@@ -887,7 +898,7 @@ def npm_list(global_mode=False):
 
 
 def npm_outdated(global_mode=False):
-    cmd = "npm outdated --json"
+    cmd = "npm outdated --depth=0 --json"
     if global_mode:
         cmd = "npm outdated -g --depth=0 --json"
 
@@ -1258,9 +1269,13 @@ def run_npm_cmd(args):
             args,
             shell=IS_WINDOWS,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            timeout=NPM_UPDATE_TIMEOUT,
         )
         return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        _TIMED_OUT.append(" ".join(args))
+        return False
     except Exception:
         return False
 
@@ -1365,7 +1380,7 @@ def update_all(rows):
         print()
         print_message("info", t("nothing_to_update"))
         time.sleep(DELAY)
-        return
+        return False
 
     tasks = [("LOCAL", n) for n in local_to_update]
     tasks += [("GLOBAL", n) for n in global_to_update]
@@ -1383,6 +1398,7 @@ def update_all(rows):
     else:
         print_message("error", t("update_failed"))
     time.sleep(DELAY)
+    return True
 
 
 def update_one(row):
@@ -1390,7 +1406,7 @@ def update_one(row):
         print()
         print_message("info", t("already_updated"))
         time.sleep(DELAY)
-        return
+        return False
 
     name = row["name"]
     tasks = []
@@ -1412,6 +1428,7 @@ def update_one(row):
     else:
         print_message("error", t("update_failed"))
     time.sleep(DELAY)
+    return True
 
 
 # =====================================================
@@ -1443,14 +1460,26 @@ def collect_rows():
 def main():
     load_language()
 
+    rows = None
+    fetched_at = 0
+    need_fetch = True
 
     while True:
-        clear()
-        spinner = start_spinner(t("collecting_data"))
-        try:
-            rows = collect_rows()
-        finally:
-            stop_spinner(spinner)
+        if need_fetch or rows is None or (
+            CACHE_TTL > 0 and time.time() - fetched_at > CACHE_TTL
+        ):
+            clear()
+            spinner = start_spinner(t("collecting_data"))
+            try:
+                rows = collect_rows()
+                fetched_at = time.time()
+            finally:
+                stop_spinner(spinner)
+            timed_out = bool(_TIMED_OUT)
+            del _TIMED_OUT[:]
+            need_fetch = False
+        else:
+            timed_out = False
 
         clear()
 
@@ -1466,6 +1495,9 @@ def main():
 
         # Imprime tabela responsiva
         print_table_responsive(rows, terminal_width)
+
+        if timed_out:
+            print_message("warn", t("npm_timeout"))
 
         print("\n  " + c("muted", t("options")))
         print(f"  {c('muted', '[a]')} {t('update_all')}")
@@ -1488,7 +1520,7 @@ def main():
 
         elif choice == "r":
             print(choice)
-            SIZE_CACHE.clear()
+            need_fetch = True
             continue
 
         elif choice == "a":
@@ -1499,10 +1531,11 @@ def main():
                 confirm = get_key().strip().lower()
             print(confirm)
             if confirm == "y":
-                update_all(rows)
+                if update_all(rows):
+                    need_fetch = True
             else:
                 print_message("info", t("cancelled"))
-                time.sleep(DELAY)
+                time.sleep(min(DELAY, 1))
 
         elif choice == "o":
             print(choice)
@@ -1523,10 +1556,11 @@ def main():
                 row = next(r for r in rows if r["id"] == num)
             except (TypeError, ValueError, StopIteration):
                 print_message("warn", t("invalid_number"))
-                time.sleep(DELAY)
+                time.sleep(min(DELAY, 1))
                 continue
 
-            update_one(row)
+            if update_one(row):
+                need_fetch = True
         elif choice.isdigit():
             num_str = choice
             print(choice, end="", flush=True)
@@ -1542,14 +1576,15 @@ def main():
             try:
                 num = int(num_str.strip())
                 row = next(r for r in rows if r["id"] == num)
-                update_one(row)
+                if update_one(row):
+                    need_fetch = True
             except (TypeError, ValueError, StopIteration):
                 print_message("warn", t("invalid_number"))
-                time.sleep(DELAY)
+                time.sleep(min(DELAY, 1))
         else:
             print(choice)
             print_message("warn", t("invalid_option"))
-            time.sleep(DELAY)
+            time.sleep(min(DELAY, 1))
 
 
 if __name__ == "__main__":

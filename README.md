@@ -24,13 +24,24 @@ It shows installed versions, available updates, and package size, then lets you 
 
 ## Performance Notes
 
-The current implementation was optimized to reduce initial load time:
+The current implementation is optimized to avoid repeated work:
 
-- `npm list` and `npm outdated` are collected in parallel
+- `npm list` and `npm outdated` are collected in parallel (`--depth=0` everywhere)
 - Package size calculation runs in parallel
-- Size results are cached by package scope and version during the current session
+- Size results are cached by package scope and version for the whole session — refresh (`r`) never clears the cache; new versions simply miss and get measured once
+- The main loop reuses fetched data: it refetches only on `r`, after an update, or when the data is older than the TTL (default 120s)
+- Every npm call has a timeout and fails soft (empty result / `False`) with a warning instead of hanging
 
-This keeps the first load much faster than the original implementation, and repeated refreshes are faster again because size values are reused while versions stay the same.
+Tuning via environment:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `NPM_PM_DELAY` | `2` | Pause after update confirmations |
+| `NPM_PM_TTL` | `120` | Seconds before idle data is considered stale (`0` disables auto-refresh) |
+| `NPM_PM_TIMEOUT` | `90` | Timeout for `npm list` / `outdated` / `root` queries |
+| `NPM_PM_UPDATE_TIMEOUT` | `300` | Timeout for each `npm update` command |
+| `NPM_PM_ASCII` | unset | Set to `1` to force ASCII fallback |
+| `NO_COLOR` | unset | Set to disable all ANSI colors |
 
 ---
 

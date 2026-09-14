@@ -44,6 +44,7 @@
   "demo_mode": "DEMO MODE - fictitious data, no real updates.",
   "more_above": "... {count} more above",
   "more_below": "... {count} more below",
+  "npm_timeout": "npm command timed out (slow network?). Showing last known data.",
   "progress": "Progress",
   "of": "of",
   "compact_mode": "COMPACT MODE",
