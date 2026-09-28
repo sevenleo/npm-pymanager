@@ -11,6 +11,8 @@ Base language is English; other languages live only in `locales/`.
 
 ### Changed
 
+- Docs live in `docs/` (`README.md`, `CHANGELOG.md`); `README`
+  project structure updated and locale key count corrected (55 → 56).
 - Refresh (`r`) keeps the size cache; `README` documents the real
   project structure and the `CHANGELOG.md` itself.
 

@@ -73,11 +73,14 @@ project/
 │   ├── en.json
 │   ├── pt.json
 │   └── es.json
-├── CHANGELOG.md
+├── docs/
+│   ├── README.md
+│   └── CHANGELOG.md
+├── AGENTS.md
 └── package-lock.json
 ```
 
-See `CHANGELOG.md` for the history of changes.
+See `docs/CHANGELOG.md` for the history of changes.
 
 ---
 
@@ -372,7 +375,7 @@ Adding a new language requires:
 1. Creating a new locale JSON file
 2. Adding it to the language selection mapping in `main.py`
 
-### Locale Keys (55 per file)
+### Locale Keys (56 per file)
 
 All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels and the `confirm_update_all` prompt. Keep the three files in sync — every `t()` key must exist in all of them.
 

@@ -61,16 +61,32 @@ If you add code, verify it works by running `python main.py` and exercising the 
 ### Code Organization
 
 The file is structured into ASCII-bannered sections in this order:
-1. PLATFORM COMPATIBILITY — `os.name` / `sys.platform` checks
-2. CONFIG — default directory, editor, colors
-3. I18N — locale loader and `t()` helper
-4. TERMINAL SIZE & UI HELPERS — cursor movement, colors
-5. NPM HELPERS — `npm list --json`, `npm outdated --json`, `npm update`
-6. SIZE — `ls -la` size calculation and `du-like` totals
-7. TABLE — drawing logic for the package table
-8. UPDATE — `npm update [pkg]` execution
-9. DATA REFRESH — async refresh loop via `concurrent.futures`
-10. MAIN LOOP — keyboard handling and dispatch
+1. PLATFORM COMPATIBILITY — `os.name` checks, `msvcrt` vs `tty`/`termios`
+   input, `_read_msvcrt_key` / `getch` / `get_key` special-key filtering
+2. CONFIG — `SCRIPT_DIR` / `LOCALES_DIR`, `LANG` / `STRINGS`, `DELAY`,
+   `NPM_TIMEOUT` / `NPM_UPDATE_TIMEOUT`, `CACHE_TTL`, `SIZE_CACHE`,
+   `COLOR_ENABLED` / `USE_UNICODE`, `DEMO_MODE`, `_FRAME_LINES`
+3. I18N — locale loader and `t()` helper, theme init (`supports_color`,
+   `_detect_unicode`, `NO_COLOR` / `NPM_PM_ASCII`), `c()` / `status_label`
+4. TERMINAL SIZE & UI HELPERS — `get_terminal_size`,
+   `truncate_string`, separators, spinners, message prefixes
+5. TERMINAL — `clear`, `print_header`, progress bar lines, frame/viewport
+   rendering (`_build_progress_frame`, `_viewport_window`, `_frame_emit`)
+6. NPM HELPERS — `npm list --json`, `npm outdated --json`, `npm update`
+   via `run` / `run_npm_cmd` with timeouts and fail-soft defaults
+7. SIZE — `os.walk` traversal + `human_size`, `npm_root` (`lru_cache`),
+   per-scope/version `SIZE_CACHE`, parallel `collect_sizes`
+8. TABLE — drawing logic for the package table (full / compact /
+   ultra-compact) plus `DEMO_ROWSPEC` / `collect_rows_demo`
+9. UPDATE — `npm update [pkg]` execution (`_npm_args`, `_run_tasks_frame`
+   vs `_run_tasks_legacy`, `update_all` / `update_one`)
+10. DATA REFRESH — cached fetch loop (`collect_rows`, `need_fetch` flag,
+    `CACHE_TTL` staleness) with `ThreadPoolExecutor` fan-out
+11. MAIN LOOP — keyboard handling and dispatch (`a` / `o` / digits /
+    `r` / `q`, `(y/N)` confirm)
+
+### Docs
+- User docs live in `docs/` (`README.md`, `CHANGELOG.md`), not at root.
 
 ### User-Facing Strings
 - All user-facing strings go through `t(key)` which looks up the current locale (en/es/pt)
@@ -80,7 +96,7 @@ The file is structured into ASCII-bannered sections in this order:
 ### Testing
 - No test framework is set up. Do NOT add one without explicit user request.
 - If you modify logic, manually verify with `python main.py`
-- The README explicitly states "There is no automated test suite yet"
+- The `docs/README.md` explicitly states "There is no automated test suite yet"
 
 ### Git
 - Commits are short lowercase English phrases without conventional-commit prefixes
