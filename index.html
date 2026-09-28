@@ -25,6 +25,7 @@
         <a href="#how">How it works</a>
         <a href="#safety">Safety</a>
         <a href="#faq">FAQ</a>
+        <a href="https://github.com/sevenleo/npm-pymanager" rel="noopener">GitHub</a>
       </nav>
     </div>
   </header>
@@ -35,41 +36,39 @@
         <div class="hero-copy">
           <p class="badge">Pure Python stdlib &middot; zero dependencies &middot; MIT</p>
           <h1>Every npm update,<br />one <span class="accent">calm screen</span>.</h1>
-          <p class="lede">Stop juggling <code>npm outdated</code> and <code>npm outdated -g</code>. One merged table shows <strong>local + global</strong> packages — installed version, latest, disk size, status — then updates <strong>only what is outdated</strong>.</p>
+          <p class="lede">Local + global packages in one table — installed, latest, size, status. Updates only what's outdated.</p>
           <div class="cta-row">
             <a class="btn btn-primary" href="#install">Get started</a>
-            <a class="btn btn-ghost" href="#how">How it works</a>
+            <a class="btn btn-ghost" href="https://github.com/sevenleo/npm-pymanager" rel="noopener">GitHub</a>
           </div>
+          <div class="cmdline cmdline-wrap">
+            <code id="cloneCmd">git clone https://github.com/sevenleo/npm-pymanager.git</code>
+            <button class="copy-btn" data-copy="cloneCmd" type="button">Copy</button>
+          </div>
+          <p class="microcopy">Download first — clone or grab the ZIP on <a href="https://github.com/sevenleo/npm-pymanager" rel="noopener">GitHub</a>. Then no <code>pip install</code>: Python 3.8+ and npm in <code>PATH</code> suffice.</p>
           <div class="cmdline">
             <code id="runCmd">python main.py</code>
             <button class="copy-btn" data-copy="runCmd" type="button">Copy</button>
           </div>
-          <p class="microcopy">No <code>pip install</code>. Just Python 3.8+ and Node + npm in <code>PATH</code>. This file comes with the app — the folder around it <em>is</em> the download.</p>
-          <p class="microcopy microcopy-soft">Terminal already in the app folder? Run it as-is. Checking another project? Use the central-copy form in Install: <code>cd my-app &amp;&amp; python ../npm-pymanager/main.py</code>. Outside a Node project the local list is empty — globals still show. That is normal, not an error.</p>
-          <ul class="hero-proof">
-            <li><strong>Merged</strong> local + global</li>
-            <li><strong>Safe</strong> asks before update-all</li>
-            <li><strong>Honest</strong> lists failures by name</li>
-          </ul>
-          <p class="microcopy microcopy-soft">Why Python for an npm tool? Zero <code>node_modules</code> bloat, single script, works even when a project install is broken. Prefer a peek first? <code>python main.py --test</code> opens the same UI with fake data.</p>
         </div>
 
         <div class="hero-terminal" id="terminal-demo" aria-label="Animated preview of the npm-pymanager terminal UI">
           <div class="term-bar">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
             <span class="term-title">npm-pymanager — python main.py</span>
+            <button class="term-replay" id="termReplay" type="button" title="Replay preview">↻</button>
             <span class="term-live"><span class="pulse"></span>live</span>
           </div>
           <div class="term-body">
-            <p class="term-head">NPM PACKAGES<br /><span class="muted">10 &middot; 6 to update &middot; 4 ok &middot; sizes from disk</span></p>
-            <div class="term-table" id="termTable" aria-hidden="true"><div class="term-row"><span class="n">1</span><span class="scope">[G]</span><span class="name">chalk</span><span class="ver">4.1.2→5.4.1</span><span class="size">312KB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">2</span><span class="scope">[L]</span><span class="name">axios</span><span class="ver">1.6.7→1.20.0</span><span class="size">1.8MB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">3</span><span class="scope">[L]</span><span class="name">vite</span><span class="ver">6.0.0</span><span class="size">24MB</span><span class="st-ok">[ok]</span></div></div>
+            <p class="term-head">NPM PACKAGES<br /><span class="muted">10 &middot; 6 to update &middot; 4 ok</span></p>
+            <div class="term-table" id="termTable" aria-hidden="true"><div class="term-row active"><span class="n">1</span><span class="scope">[G]</span><span class="name">chalk</span><span class="ver">4.1.2→5.4.1</span><span class="size">312KB</span><span class="st-up">[&gt;]</span></div><div class="term-row"><span class="n">2</span><span class="scope">[G]</span><span class="name">commander</span><span class="ver">11.1.0→14.0.2</span><span class="size">890KB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">3</span><span class="scope">[L]</span><span class="name">axios</span><span class="ver">1.6.7→1.20.0</span><span class="size">1.8MB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">4</span><span class="scope">[L]</span><span class="name">express</span><span class="ver">4.19.2→5.1.0</span><span class="size">2.4MB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">5</span><span class="scope">[L]</span><span class="name">lodash</span><span class="ver">4.17.20→4.17.21</span><span class="size">1.2MB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">6</span><span class="scope">[L]</span><span class="name">left-pad</span><span class="ver">1.3.0→1.3.1</span><span class="size">8KB</span><span class="st-up">[update]</span></div><div class="term-row"><span class="n">7</span><span class="scope">[L]</span><span class="name">react</span><span class="ver">19.2.0</span><span class="size">12.6MB</span><span class="st-ok">[ok]</span></div><div class="term-row"><span class="n">8</span><span class="scope">[G]</span><span class="name">typescript</span><span class="ver">5.9.2</span><span class="size">68MB</span><span class="st-ok">[ok]</span></div><div class="term-row"><span class="n">9</span><span class="scope">[L]</span><span class="name">vite</span><span class="ver">6.0.0</span><span class="size">24MB</span><span class="st-ok">[ok]</span></div><div class="term-row"><span class="n">10</span><span class="scope">[L]</span><span class="name">eslint</span><span class="ver">9.12.0</span><span class="size">18MB</span><span class="st-ok">[ok]</span></div></div>
             <div class="term-progress">
-              <div class="term-progress-row"><span id="termBarText">[██░░░░░░░░░░] 0/6 (0%)</span></div>
+              <div class="term-progress-row"><span id="termBarText">[██░░░░░░░░░░] 1/6 (17%)</span></div>
               <div class="term-bar-track"><div class="term-bar-fill" id="termBarFill"></div></div>
-              <p class="muted term-status" id="termStatus">Updating package: [G] chalk</p>
-              <p class="muted term-next" id="termNext">Next: [G] commander &middot; locals first, then globals</p>
+              <p class="muted term-status" id="termStatus">Updating package: [G] chalk 4.1.2 → 5.4.1</p>
+              <p class="muted term-next" id="termNext">Next: [G] commander</p>
             </div>
-            <p class="term-caption">Animated preview with popular packages (hero condenses versions for space; <a href="#how">full 8-column example below</a>). Your run shows your own versions and disk sizes.</p>
+            <p class="term-caption">Preview with popular packages. <a href="#how">Full table below</a> — your run shows your data.</p>
           </div>
         </div>
       </div>
@@ -84,23 +83,22 @@
       <div class="wrap">
         <p class="kicker">Why it helps</p>
         <h2>What it does</h2>
-        <p class="section-lede">Built for daily npm use: see everything once, decide in one keypress, trust what it reports.</p>
         <div class="grid cards cards-4">
           <article class="card">
             <h3>Local + global, merged</h3>
-            <p>One table, scope tags <code>[L] / [G]</code>. Installed, latest and disk size per row — <span class="pill pill-ok">[ok]</span> or <span class="pill pill-warn">[update]</span>.</p>
+            <p>Installed, latest, size per row — <span class="pill pill-ok">[ok]</span> or <span class="pill pill-warn">[update]</span>.</p>
           </article>
           <article class="card">
             <h3>Safe by default</h3>
-            <p>Only outdated packages are touched. Update-all asks <code>(y/N)</code> first. Failures are listed by name, table refreshes after.</p>
+            <p>Only outdated. Update-all asks <code>(y/N)</code>. Failures listed by name.</p>
           </article>
           <article class="card">
-            <h3>Fast to operate</h3>
-            <p><kbd>a</kbd> all outdated, <kbd>o</kbd> or a number for one, <kbd>r</kbd> refresh, <kbd>q</kbd> quit. Single keypress, no Enter for menu.</p>
+            <h3>Keyboard-first</h3>
+            <p><kbd>a</kbd> all, <kbd>o</kbd>/number one, <kbd>r</kbd> refresh, <kbd>q</kbd> quit. No Enter.</p>
           </article>
           <article class="card">
-            <h3>Readable anywhere</h3>
-            <p>Full table at ≥80 cols, compact at 60–79, cards below 60. <code>NO_COLOR=1</code> and ASCII fallback included.</p>
+            <h3>Fits any terminal</h3>
+            <p>Full ≥80, compact 60–79, cards &lt;60. <code>NO_COLOR</code> ready.</p>
           </article>
         </div>
       </div>
@@ -109,21 +107,19 @@
     <section class="section section-alt" id="install">
       <div class="wrap">
         <p class="kicker">Get started</p>
-        <h2>Install in two minutes</h2>
-        <p class="section-lede">No registry, no build step. If you can see this page, you already have the app: the folder around it holds <code>main.py</code> + <code>locales/</code>. Keep them together.</p>
+        <h2>Two minutes: download, check, run</h2>
+        <div class="panel note-panel note-warning">
+          <strong>Download:</strong> <a href="https://github.com/sevenleo/npm-pymanager" rel="noopener">github.com/sevenleo/npm-pymanager</a> — clone it or grab the ZIP, then <code>cd npm-pymanager</code>.
+        </div>
         <div class="grid steps">
-          <article class="step"><span class="step-n">1</span><h3>Check</h3><p>Python 3.8+ and npm reachable. Run each line (Windows: <code>python</code> or <code>py</code>):</p><div class="cmdline cmdline-small"><code id="checkCmd">node -v
+          <article class="step"><span class="step-n">1</span><h3>Download</h3><div class="cmdline cmdline-small cmdline-wrap"><code id="cloneCmd2">git clone https://github.com/sevenleo/npm-pymanager.git</code><button class="copy-btn" data-copy="cloneCmd2" type="button">Copy</button></div><p class="muted small">No ZIP? Use the green <strong>Code</strong> button on <a href="https://github.com/sevenleo/npm-pymanager" rel="noopener">GitHub</a>.</p></article>
+          <article class="step"><span class="step-n">2</span><h3>Check</h3><div class="cmdline cmdline-small"><code id="checkCmd">node -v
 npm -v
-python --version</code><button class="copy-btn" data-copy="checkCmd" type="button">Copy</button></div><p class="muted small">Confirm the app files are beside this page: <code>main.py</code> + <code>locales/en.json</code>.</p></article>
-          <article class="step"><span class="step-n">2</span><h3>Keep one copy</h3><pre class="output">npm-pymanager/
-  main.py
-  locales/en.json, pt.json, es.json
-  docs/README.md, CHANGELOG.md
-  index.html (this page)</pre><p>Do not separate <code>main.py</code> from <code>locales/</code> — strings load relative to the script file. One copy serves all your projects.</p></article>
-          <article class="step"><span class="step-n">3</span><h3>Run at your project</h3><p><strong>Simplest:</strong> open the project folder in a terminal and run:</p><div class="cmdline cmdline-small"><code id="runCmd2">python main.py</code><button class="copy-btn" data-copy="runCmd2" type="button">Copy</button></div><p class="muted small">Your current folder decides locals; globals always show. Same command as the hero — no second form to memorize. One copy serves all projects: <code>cd my-app &amp;&amp; python ../npm-pymanager/main.py</code>. Language asks every run on purpose — no config file to maintain, one keypress (<code>1 / 2 / 3</code>, <code>Enter</code> alone is English, ~1s). This page is EN; the app UI is EN/PT/ES.</p></article>
+python --version</code><button class="copy-btn" data-copy="checkCmd" type="button">Copy</button></div><p class="muted small">Windows: <code>python</code> or <code>py</code>. Keep <code>main.py + locales/</code> together.</p></article>
+          <article class="step"><span class="step-n">3</span><h3>Run in your project</h3><div class="cmdline cmdline-small"><code id="runCmd2">python main.py</code><button class="copy-btn" data-copy="runCmd2" type="button">Copy</button></div><p class="muted small">Current folder = locals; globals always show. Elsewhere: <code>python ../npm-pymanager/main.py</code>. Language: <code>1/2/3</code>, Enter = English.</p></article>
         </div>
         <div class="panel note-panel">
-          <strong>Heads up:</strong> outside a Node project the local section is usually empty — globals still show if npm resolves its global root. If you installed packages externally, press <kbd>r</kbd> to refetch. Sizes are measured from disk once per scope + version, then cached for the session.
+          Outside a Node project, locals are empty — globals still show. Changed packages externally? Press <kbd>r</kbd>.
         </div>
       </div>
     </section>
@@ -133,22 +129,21 @@ python --version</code><button class="copy-btn" data-copy="checkCmd" type="butto
         <p class="kicker">Usage</p>
         <h2>Three steps, every day</h2>
         <div class="grid steps">
-          <article class="step"><span class="step-n">1</span><h3>Run</h3><p><code>python main.py</code> in your project folder. Pick <code>1</code> English, <code>2</code> Português, <code>3</code> Español — single keypress, about one second.</p></article>
-          <article class="step"><span class="step-n">2</span><h3>Choose — the table is your preview</h3><p>No separate dry-run needed: the <code>LOCAL_NEW / GLOBAL_NEW</code> column already shows what would change. <kbd>a</kbd> updates all outdated (both scopes) — confirm with <code>y</code>, anything else aborts. <kbd>o</kbd> or a number + <code>Enter</code> updates one package and only its outdated scopes. Prefer locals only? Update numbers one by one and skip the <code>[G]</code> rows.</p></article>
-          <article class="step"><span class="step-n">3</span><h3>Done</h3><p>Locals update first, then globals. Failures listed by name, table refetches once, back to menu.</p></article>
+          <article class="step"><span class="step-n">1</span><h3>Run</h3><p><code>python main.py</code>, pick <code>1/2/3</code> — one keypress.</p></article>
+          <article class="step"><span class="step-n">2</span><h3>Choose</h3><p>Table is the preview. <kbd>a</kbd> all (<code>y</code> confirms), number one. Skip <code>[G]</code> rows to keep globals.</p></article>
+          <article class="step"><span class="step-n">3</span><h3>Done</h3><p>Locals first, then globals. Failures named, table refreshes.</p></article>
         </div>
         <div class="panel">
-          <h3 class="tune-title">What the real table looks like</h3>
-          <p class="muted small">Full mode at ≥80 cols — split global / local columns. Example layout with popular packages:</p>
+          <h3 class="tune-title">Full table (≥80 cols)</h3>
           <div class="table-scroll"><table class="table table-small">
             <thead><tr><th>#</th><th>Package</th><th>Global</th><th>Global new</th><th>Local</th><th>Local new</th><th>Size</th><th>Status</th></tr></thead>
             <tbody>
               <tr><td>1</td><td>axios</td><td>—</td><td>—</td><td>1.6.7</td><td>1.20.0</td><td>1.8MB</td><td><span class="pill pill-warn">[update]</span></td></tr>
-              <tr><td>2</td><td>chalk</td><td>4.1.2</td><td>5.4.1</td><td>—</td><td>—</td><td>312KB(G)</td><td><span class="pill pill-warn">[update]</span></td></tr>
+              <tr><td>2</td><td>chalk</td><td>4.1.2</td><td>5.4.1</td><td>—</td><td>—</td><td>312KB</td><td><span class="pill pill-warn">[update]</span></td></tr>
               <tr><td>3</td><td>vite</td><td>—</td><td>—</td><td>6.0.0</td><td>6.0.0</td><td>24MB</td><td><span class="pill pill-ok">[ok]</span></td></tr>
             </tbody>
           </table></div>
-          <p class="muted small">Compact at 60–79 cols: <code>axios 1.6.7 -&gt; 1.20.0 [update]</code>. Below 60 cols: vertical cards, one block per package. Long names truncate with <code>...</code>.</p>
+          <p class="muted small">60–79: <code>1.6.7 → 1.20.0</code>. Below 60: cards. Long names truncate…</p>
         </div>
       </div>
     </section>
@@ -157,46 +152,29 @@ python --version</code><button class="copy-btn" data-copy="checkCmd" type="butto
       <div class="wrap">
         <p class="kicker">Trust</p>
         <h2>What it runs, exactly</h2>
-        <p class="section-lede">Thin wrapper over npm — same rules as <code>npm update</code>, so it respects your semver ranges. It never edits ranges or forces <code>@latest</code>. The table itself is the dry-run: review <code>LOCAL_NEW / GLOBAL_NEW</code> before pressing <kbd>a</kbd>.</p>
         <div class="split">
           <div class="panel">
             <ul class="checklist">
-              <li><strong>Read:</strong> <code>npm list --depth=0 --json</code> + <code>npm outdated --depth=0 --json</code>, local and global, in parallel</li>
-              <li><strong>Write:</strong> <code>npm update</code> only for rows flagged outdated; success only on exit code <code>0</code></li>
-              <li><strong>Confirm:</strong> update-all needs <code>y</code>; already-current picks just say so</li>
-              <li><strong>Fail soft:</strong> every npm call has a timeout; bad JSON or timeout keeps last data with a warning</li>
-              <li><strong>Offline:</strong> latest columns stay empty instead of crashing</li>
+              <li><strong>Reads</strong> <code>npm list/outdated --depth=0 --json</code>, local + global</li>
+              <li><strong>Writes</strong> <code>npm update</code> on outdated rows only (exit <code>0</code> = ok)</li>
+              <li><strong>Asks</strong> <code>(y/N)</code> before update-all; timeouts warn, offline keeps data</li>
             </ul>
-            <h3 class="tune-title">What changes on disk</h3>
-            <p class="muted small">Same as running <code>npm update</code> yourself: <code>node_modules</code> + <code>package-lock.json</code> move forward within your ranges. <code>package.json</code> ranges are left alone. Routine git habit: review with <code>git diff package-lock.json</code>, undo with <code>git checkout -- package-lock.json</code> + <code>npm ci</code>.</p>
-            <div class="cmdline cmdline-small"><code id="safeCmd">git status --short &amp;&amp; git diff --stat</code><button class="copy-btn" data-copy="safeCmd" type="button">Copy</button></div>
+            <h3 class="tune-title">On disk</h3>
+            <p class="muted small"><code>node_modules</code> + lock move within your ranges; <code>package.json</code> untouched. Review <code>git diff package-lock.json</code>, undo with checkout + <code>npm ci</code>.</p>
           </div>
           <div class="panel">
-            <h3 class="tune-title">How it compares</h3>
+            <h3 class="tune-title">Versus</h3>
             <div class="table-scroll"><table class="table table-small">
-              <thead><tr><th>Tool</th><th>Merged L+G</th><th>Only outdated</th><th>Asks first</th></tr></thead>
+              <thead><tr><th>Tool</th><th>Merged</th><th>Asks</th></tr></thead>
               <tbody>
-                <tr><td><code>npm outdated</code></td><td>No — one scope at a time</td><td>Shows only</td><td>—</td></tr>
-                <tr><td><code>npm update</code></td><td>No</td><td>Yes</td><td>No</td></tr>
-                <tr><td><code>npx npm-check-updates</code></td><td>Local focus</td><td>Proposes, incl. majors</td><td>Via review</td></tr>
-                <tr><td><strong>npm-pymanager</strong></td><td><strong>Yes, with [L]/[G]</strong></td><td><strong>Yes</strong></td><td><strong>Yes (y/N)</strong></td></tr>
+                <tr><td><code>npm outdated</code></td><td>No</td><td>—</td></tr>
+                <tr><td><code>npm update</code></td><td>No</td><td>No</td></tr>
+                <tr><td><code>ncu</code></td><td>Local</td><td>Review</td></tr>
+                <tr><td><strong>pymanager</strong></td><td><strong>Yes [L]/[G]</strong></td><td><strong>Yes</strong></td></tr>
               </tbody>
             </table></div>
-            <p class="muted small">If you want interactive major bumps, use <code>ncu</code>. If you want a calm daily <code>npm update</code> for both scopes with sizes, stay here.</p>
-            <h3 class="tune-title">Output shape</h3>
-            <pre class="output">[████████░░░░░░░░] 3/7 (43%)
-Updating: LOCAL commander / Next: express
-[ok] [L] axios  [ok] [L] chalk  [&gt;] [L] commander</pre>
-            <p class="muted small">Pinned bar on top, one row per package with <code>[L]/[G]</code>, <code>[ok] / [&gt;] / [ ] / [x]</code>. Piped output logs the same steps sequentially.</p>
-            <h3 class="tune-title">Failures look like this</h3>
-            <pre class="output">[ok] [L] axios
-[x] [L] express (timeout)
-update_failed: express</pre>
-            <p class="muted small">Failed packages are listed by name at the end (<code>[x]</code> red). Nothing is hidden — fix that one manually, the rest already updated.</p>
+            <p class="muted small">Want majors? Use <code>ncu</code>. Failures show <code>[x] name</code> — nothing hidden.</p>
           </div>
-        </div>
-        <div class="panel note-panel">
-          <strong>Good to know:</strong> first size scan on huge trees takes a moment (then cached) · <code>npm outdated</code> needs network or latest stays empty · best for single plain npm projects; monorepo tip below. History in <code>docs/CHANGELOG.md</code>.
         </div>
       </div>
     </section>
@@ -206,46 +184,24 @@ update_failed: express</pre>
         <p class="kicker">FAQ</p>
         <h2>Details, tucked away</h2>
         <details class="faq" open>
-          <summary>Will it break my project with a major bump?</summary>
-          <p>No — it delegates to <code>npm update</code>, which follows your <code>package.json</code> ranges. It never edits ranges or forces <code>@latest</code>. What moves is <code>node_modules</code> + <code>package-lock.json</code>. Commit before you run, review with <code>git diff package-lock.json</code>, undo with <code>git checkout -- package-lock.json</code> + <code>npm ci</code>. Update-all asks <code>(y/N)</code> defaulting to <code>N</code>.</p>
+          <summary>Will it break my project?</summary>
+          <p>It follows your <code>package.json</code> ranges via <code>npm update</code> — never forces <code>@latest</code>. Commit first; undo with <code>git checkout -- package-lock.json</code> + <code>npm ci</code>.</p>
         </details>
         <details class="faq">
-          <summary>What exactly gets updated?</summary>
-          <p>Only packages flagged outdated. One queue, locals first then globals, tagged <code>[L] / [G]</code>. Already-current picks report “already updated”. Anything but <code>y</code> aborts update-all. After the run the table refetches once.</p>
+          <summary>What gets updated?</summary>
+          <p>Only outdated rows — locals first, then globals <code>[L]/[G]</code>. Anything but <code>y</code> aborts update-all.</p>
         </details>
         <details class="faq">
-          <summary>Workspaces? pnpm / yarn? Global permissions?</summary>
-          <p>Plain npm projects only — <code>node_modules</code> + global root. No special workspaces / pnpm / yarn handling. Monorepo tip: run once per workspace root (locals come from your current folder). For majors or interactive range edits, pair with <code>npx npm-check-updates</code>. For globals, pre-check with <code>npm root -g</code>: if that folder needs admin rights, run the terminal accordingly or fix your npm prefix. Failures surface as <code>[x] name</code>, never silently.</p>
+          <summary>Workspaces? pnpm? Globals need sudo?</summary>
+          <p>Plain npm only — run once per workspace. Same rights as <code>npm update -g</code>; pre-check <code>npm root -g</code>.</p>
         </details>
         <details class="faq">
-          <summary>Offline or slow registry?</summary>
-          <p>Offline, the “latest” columns stay empty instead of crashing. Every npm call has a timeout and fails soft — you keep your last known data with a warning.</p>
+          <summary>Offline? Tune? Small screen?</summary>
+          <p>Offline: latest stays empty, last data kept. Tune: <code>NPM_PM_TTL 120</code>, <code>TIMEOUT 90</code>, <code>UPDATE_TIMEOUT 300</code>, <code>ASCII/NO_COLOR</code>. Display: full ≥80, compact 60–79, cards below 60.</p>
         </details>
         <details class="faq">
-          <summary>Can I tune it?</summary>
-          <div class="table-scroll"><table class="table table-small">
-            <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
-            <tbody>
-              <tr><td><code>NPM_PM_DELAY</code></td><td>2</td><td>Pause after update confirmations</td></tr>
-              <tr><td><code>NPM_PM_TTL</code></td><td>120</td><td>Stale-data seconds (0 disables auto-refresh)</td></tr>
-              <tr><td><code>NPM_PM_TIMEOUT</code></td><td>90</td><td>List / outdated / root timeout</td></tr>
-              <tr><td><code>NPM_PM_UPDATE_TIMEOUT</code></td><td>300</td><td>Per-update timeout</td></tr>
-              <tr><td><code>NPM_PM_ASCII</code></td><td>unset</td><td>Set to <code>1</code> to force ASCII fallback</td></tr>
-              <tr><td><code>NO_COLOR</code></td><td>unset</td><td>Set to disable all ANSI colors</td></tr>
-            </tbody>
-          </table></div>
-        </details>
-        <details class="faq">
-          <summary>Small terminal? No colors?</summary>
-          <p>Full table at ≥80 columns, compact versions at 60–79 (<code>1.2.3 -&gt; 1.3.0</code>), vertical cards below 60. <code>NO_COLOR=1</code>, <code>--no-color</code>, <code>TERM=dumb</code> or piped output disables colors. <code>NPM_PM_ASCII=1</code> forces ASCII.</p>
-        </details>
-        <details class="faq">
-          <summary>How are sizes and languages handled?</summary>
-          <p>Sizes are measured from disk (<code>node_modules/&lt;pkg&gt;</code> local, <code>npm root -g</code> global) and cached per scope + version — first load on huge trees takes a moment, refresh never remeasures unchanged versions. UI strings come from <code>locales/en,pt,es.json</code> (56 keys, keep in sync).</p>
-        </details>
-        <details class="faq">
-          <summary>Can I peek without touching npm?</summary>
-          <p>Yes, optionally: <code>python main.py --test</code> opens the same UI with example data so you can exercise the keys. It is not the main flow — daily use is <code>python main.py</code>.</p>
+          <summary>Sizes? Languages? Peek first?</summary>
+          <p>Sizes from disk, cached per scope + version. UI: <code>locales/en,pt,es.json</code>. Peek: <code>python main.py --test</code> (fake data).</p>
         </details>
       </div>
     </section>
@@ -253,8 +209,8 @@ update_failed: express</pre>
 
   <footer class="footer">
     <div class="wrap footer-inner">
-      <span>npm-pymanager — stdlib-only TUI for npm updates. Reference files sit beside this page under <code>docs/</code>.</span>
-      <span class="muted">MIT · <span id="year">2026</span> · No trackers, no cookies, no build step.</span>
+      <span>npm-pymanager — stdlib-only TUI for npm updates. <a href="https://github.com/sevenleo/npm-pymanager" rel="noopener">GitHub</a>.</span>
+      <span class="muted">MIT · <span id="year">2026</span> · No trackers, no cookies, no build.</span>
     </div>
   </footer>
 

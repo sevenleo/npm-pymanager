@@ -68,6 +68,8 @@ h1 { font-size: clamp(2.2rem, 4.6vw, 3.4rem); line-height: 1.05; margin: 0 0 14p
 .cmdline { display: flex; gap: 10px; align-items: center; background: #0e1622; border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 10px 14px; max-width: 26rem; }
 .cmdline-small { max-width: none; margin-top: 10px; }
 .cmdline code { border: 0; background: transparent; padding: 0; overflow-x: auto; white-space: nowrap; flex: 1; }
+.cmdline-wrap code { white-space: normal; word-break: break-all; overflow-x: visible; }
+.cmdline .copy-btn { flex-shrink: 0; }
 .microcopy { color: var(--muted); font-size: .9rem; }
 .microcopy-soft { font-size: .84rem; margin-top: 6px; }
 
@@ -79,7 +81,9 @@ h1 { font-size: clamp(2.2rem, 4.6vw, 3.4rem); line-height: 1.05; margin: 0 0 14p
 .term-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #0e1622; border-bottom: 1px solid var(--line); }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: #2a3a54; display: inline-block; }
 .term-title { margin-left: 6px; color: var(--muted); font-size: .82rem; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.term-live { margin-left: auto; font-size: .75rem; color: var(--green); display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.term-replay { margin-left: auto; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; cursor: pointer; font-size: .8rem; line-height: 1.4; }
+.term-replay:hover { color: var(--green); border-color: var(--green); }
+.term-live { font-size: .75rem; color: var(--green); display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.4s infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
 .term-body { padding: 16px 16px 14px; font-family: var(--mono); font-size: .8rem; }

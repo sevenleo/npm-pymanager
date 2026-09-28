@@ -14,34 +14,37 @@
       toggle.setAttribute("aria-expanded", open ? "true" : "false");
     });
     links.addEventListener("click", function (e) {
-      if (e.target.tagName === "A") links.classList.remove("open");
+      if (e.target && e.target.tagName === "A") links.classList.remove("open");
     });
   }
 
   // Copy buttons: data-copy points at element id with the text
-  document.querySelectorAll(".copy-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var id = btn.getAttribute("data-copy");
-      var src = id ? document.getElementById(id) : null;
-      var text = src ? src.textContent : "";
-      function done() {
-        var old = btn.textContent;
-        btn.textContent = "Copied";
-        setTimeout(function () { btn.textContent = old; }, 1200);
-      }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text.trim()).then(done, done);
-      } else {
-        var ta = document.createElement("textarea");
-        ta.value = text.trim();
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand("copy"); } catch (e) { /* noop */ }
-        document.body.removeChild(ta);
-        done();
-      }
-    });
-  });
+  var copyBtns = document.querySelectorAll(".copy-btn");
+  for (var b = 0; b < copyBtns.length; b++) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-copy");
+        var src = id ? document.getElementById(id) : null;
+        var text = src ? src.textContent : "";
+        function done() {
+          var old = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = old; }, 1200);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text.trim()).then(done, done);
+        } else {
+          var ta = document.createElement("textarea");
+          ta.value = text.trim();
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); } catch (e) { /* noop */ }
+          document.body.removeChild(ta);
+          done();
+        }
+      });
+    })(copyBtns[b]);
+  }
 
   // Animated terminal preview — popular packages + one failing left-pad.
   // 10 rows: 5 update ok, 1 fails [x], 4 ok. Header "10 · 6 to update · 4 ok".
@@ -53,101 +56,127 @@
     { name: "lodash",    scope: "L", installed: "4.17.20", latest: "4.17.21", size: "1.2MB", outdated: true },
     { name: "left-pad",  scope: "L", installed: "1.3.0",  latest: "1.3.1",  size: "8KB",    outdated: true, fails: true },
     { name: "react",     scope: "L", installed: "19.2.0", latest: "19.2.0", size: "12.6MB", outdated: false },
-    { name: "typescript", scope: "G", installed: "5.9.2", latest: "5.9.2",  size: "68MB",   outdated: false },
+    { name: "typescript", scope: "G", installed: "5.9.2",  latest: "5.9.2",  size: "68MB",   outdated: false },
     { name: "vite",      scope: "L", installed: "6.0.0",  latest: "6.0.0",  size: "24MB",   outdated: false },
     { name: "eslint",    scope: "L", installed: "9.12.0", latest: "9.12.0", size: "18MB",   outdated: false }
   ];
-  var queue = rows
-    .map(function (r, i) { return r.outdated ? i : -1; })
-    .filter(function (i) { return i >= 0; });
-  var total = queue.length || 1;
 
   var table = document.getElementById("termTable");
   var barText = document.getElementById("termBarText");
   var barFill = document.getElementById("termBarFill");
   var status = document.getElementById("termStatus");
   var nextEl = document.getElementById("termNext");
-  var step = 0;
+  var replay = document.getElementById("termReplay");
 
-  function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  }
-
-  function render() {
-    if (!table) return;
-    table.innerHTML = "";
-    var currentIdx = queue[Math.min(step, queue.length - 1)];
-    rows.forEach(function (r, i) {
-      var div = document.createElement("div");
-      var isCurrent = i === currentIdx;
-      var qpos = queue.indexOf(i);
-      var isDone = r.outdated && qpos >= 0 && qpos < step;
-      div.className = "term-row" + (isCurrent ? " active" : "") + (isDone ? " done" : "");
-      var mark, cls;
-      if (!r.outdated) { mark = "[ok]"; cls = "st-ok"; }
-      else if (isDone && r.fails) { mark = "[x]"; cls = "st-err"; }
-      else if (isDone) { mark = "[ok]"; cls = "st-ok"; }
-      else if (isCurrent) { mark = "[&gt;]"; cls = "st-up"; }
-      else { mark = "[update]"; cls = "st-up"; }
-      var ver = r.outdated
-        ? esc(r.installed) + "→" + esc(r.latest)
-        : esc(r.installed);
-      div.innerHTML =
-        '<span class="n">' + (i + 1) + '</span>' +
-        '<span class="scope">[' + r.scope + ']</span>' +
-        "<span class='name'>" + esc(r.name) + "</span>" +
-        "<span class='ver'>" + ver + "</span>" +
-        "<span class='size'>" + esc(r.size) + "</span>" +
-        "<span class='" + cls + "'>" + mark + "</span>";
-      table.appendChild(div);
-    });
-    var doneCount = Math.min(step + 1, total);
-    var pct = Math.round((doneCount / total) * 100);
-    var filled = Math.round((doneCount / total) * 12);
-    if (barText) barText.textContent = "[" + "█".repeat(filled) + "░".repeat(12 - filled) + "] " + doneCount + "/" + total + " (" + pct + "%)";
-    if (barFill) barFill.style.width = pct + "%";
-    if (status && currentIdx != null) {
-      var cur = rows[currentIdx];
-      status.textContent = "Updating package: [" + cur.scope + "] " + cur.name + " " + cur.installed + " → " + cur.latest;
+  if (table && barText && barFill && status && nextEl) {
+    var queue = [];
+    for (var q = 0; q < rows.length; q++) {
+      if (rows[q].outdated) queue.push(q);
     }
-    if (nextEl) {
-      var nxt = rows[queue[Math.min(step + 1, queue.length - 1)]];
-      if (step + 1 < queue.length && nxt) {
-        nextEl.textContent = "Next: [" + nxt.scope + "] " + nxt.name + "  ·  locals first, then globals";
+    var total = queue.length || 1;
+    var phases = total + 1; // last phase = finished state with [x] visible
+    var step = 0;
+    var timer = null;
+
+    function esc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    }
+
+    function render() {
+      var finished = step >= total;
+      var currentIdx = finished ? -1 : queue[step];
+      table.innerHTML = "";
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var isCurrent = i === currentIdx;
+        var qpos = queue.indexOf(i);
+        var isDone = r.outdated && (finished || qpos < step);
+        var div = document.createElement("div");
+        div.className = "term-row" + (isCurrent ? " active" : "") + (isDone ? " done" : "");
+        var mark, cls;
+        if (!r.outdated) { mark = "[ok]"; cls = "st-ok"; }
+        else if (isDone && r.fails) { mark = "[x]"; cls = "st-err"; }
+        else if (isDone) { mark = "[ok]"; cls = "st-ok"; }
+        else if (isCurrent) { mark = "[&gt;]"; cls = "st-up"; }
+        else { mark = "[update]"; cls = "st-up"; }
+        var ver = r.outdated ? esc(r.installed) + "→" + esc(r.latest) : esc(r.installed);
+        div.innerHTML =
+          '<span class="n">' + (i + 1) + '</span>' +
+          '<span class="scope">[' + r.scope + ']</span>' +
+          "<span class='name'>" + esc(r.name) + "</span>" +
+          "<span class='ver'>" + ver + "</span>" +
+          "<span class='size'>" + esc(r.size) + "</span>" +
+          "<span class='" + cls + "'>" + mark + "</span>";
+        table.appendChild(div);
+      }
+      var doneCount = finished ? total : step + 1;
+      var pct = Math.round((doneCount / total) * 100);
+      var filled = Math.round((doneCount / total) * 12);
+      var bar = "";
+      for (var f = 0; f < 12; f++) bar += f < filled ? "█" : "░";
+      barText.textContent = "[" + bar + "] " + doneCount + "/" + total + " (" + pct + "%)";
+      barFill.style.width = pct + "%";
+      if (finished) {
+        status.textContent = "Done: 5 updated, 1 failed (left-pad) — refreshing table";
+        nextEl.textContent = "·  failures listed by name, nothing hidden";
       } else {
-        nextEl.textContent = "·  finishing… refreshing table";
+        var cur = rows[currentIdx];
+        status.textContent = "Updating package: [" + cur.scope + "] " + cur.name + " " + cur.installed + " → " + cur.latest;
+        if (step + 1 < queue.length) {
+          var nxt = rows[queue[step + 1]];
+          nextEl.textContent = "Next: [" + nxt.scope + "] " + nxt.name;
+        } else {
+          nextEl.textContent = "·  finishing…";
+        }
       }
     }
-  }
 
-  if (table) {
-    render();
-    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reduceMotion) {
-      setInterval(function () {
-        step = (step + 1) % total;
+    function reducedMotion() {
+      try {
+        return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      } catch (e) { return false; }
+    }
+
+    function start() {
+      if (timer) { clearInterval(timer); timer = null; }
+      if (reducedMotion()) {
+        step = total; // static finished state, replay still available
+        render();
+        return;
+      }
+      timer = setInterval(function () {
+        step = (step + 1) % phases;
         render();
       }, 1600);
-    } else {
-      step = 2;
-      render();
+    }
+
+    render();
+    start();
+    if (replay) {
+      replay.addEventListener("click", function () {
+        step = 0;
+        render();
+        start();
+      });
     }
   }
 
   // Reveal on scroll
-  var io = null;
-  if ("IntersectionObserver" in window) {
-    io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (en.isIntersecting) {
-          en.target.classList.add("visible");
-          io.unobserve(en.target);
-        }
-      });
-    }, { threshold: 0.12 });
-    document.querySelectorAll(".card, .step, .panel").forEach(function (el) {
-      el.classList.add("reveal");
-      io.observe(el);
-    });
-  }
+  try {
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            en.target.classList.add("visible");
+            io.unobserve(en.target);
+          }
+        });
+      }, { threshold: 0.12 });
+      var revealEls = document.querySelectorAll(".card, .step, .panel");
+      for (var k = 0; k < revealEls.length; k++) {
+        revealEls[k].classList.add("reveal");
+        io.observe(revealEls[k]);
+      }
+    }
+  } catch (e) { /* noop: content stays visible without JS enhancement */ }
 })();
