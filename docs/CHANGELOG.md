@@ -7,10 +7,14 @@ Base language is English; other languages live only in `locales/`.
 
 ### Added
 
+-c add multi-package selection
+- `o` and direct number input accept comma-separated IDs; Backspace edits the selection.
 - `status` locale key for the table STATUS header (all three locales).
 
 ### Changed
 
+-c Move status before package number
+- STATUS now appears before the package number in every display mode.
 - Docs live in `docs/` (`README.md`, `CHANGELOG.md`); `README`
   project structure updated and locale key count corrected (55 → 56).
 - Refresh (`r`) keeps the size cache; `README` documents the real

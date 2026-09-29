@@ -777,13 +777,13 @@ def calculate_column_widths(terminal_width, rows, headers):
     num_cols = len(headers)
 
     # Larguras mínimas por coluna
-    if num_cols <= 4:
-        min_widths = [4, 12, 12, 12][:num_cols]
+    if num_cols <= 5:
+        min_widths = [4, 4, 12, 12, 12][:num_cols]
     else:
-        min_widths = [4, 12, 10, 10, 10, 10, 8, 10][:num_cols]
+        min_widths = [4, 4, 12, 10, 10, 10, 10, 8][:num_cols]
 
-    # Pisos absolutos para encolhimento (STATUS nunca encolhe: é o sinal calmo)
-    floors = [3, 10, 6, 6, 6, 6, 6, 0][:num_cols]
+    # STATUS fica fora da ordem de encolhimento para preservar o sinal.
+    floors = [0, 3, 10, 6, 6, 6, 6, 0][:num_cols]
 
     # Espaço disponível (subtraindo margens e separadores)
     margin = 4  # margem lateral
@@ -795,35 +795,39 @@ def calculate_column_widths(terminal_width, rows, headers):
     for i, header in enumerate(headers):
         max_len = len(header)
         for row in rows[:50]:  # amostra dos primeiros 50 pacotes
-            if num_cols <= 4:
+            if num_cols <= 5:
                 if i == 0:
-                    val = str(row.get("id", ""))
+                    val = "[" + t("status_update" if (
+                        row.get("global_outdated") or row.get("local_outdated")
+                    ) else "status_ok") + "]"
                 elif i == 1:
-                    val = row.get("name", "")
+                    val = str(row.get("id", ""))
                 elif i == 2:
-                    val = _combined_version(row.get("gver", ""), row.get("gnew", ""))
+                    val = row.get("name", "")
                 elif i == 3:
+                    val = _combined_version(row.get("gver", ""), row.get("gnew", ""))
+                elif i == 4:
                     val = _combined_version(row.get("lver", ""), row.get("lnew", ""))
                 else:
                     val = header
-            elif i == 0:  # coluna #
-                val = str(row.get("id", ""))
-            elif i == 1:  # coluna PACKAGE
-                val = row.get("name", "")
-            elif i == 2:  # GLOBAL_VERSION
-                val = row.get("gver", "")
-            elif i == 3:  # GLOBAL_NEW
-                val = row.get("gnew", "")
-            elif i == 4:  # LOCAL_VERSION
-                val = row.get("lver", "")
-            elif i == 5:  # LOCAL_NEW
-                val = row.get("lnew", "")
-            elif i == 6:  # SIZE
-                val = row.get("size", "")
-            elif i == 7:  # STATUS
+            elif i == 0:  # coluna STATUS
                 val = "[" + t("status_update" if (
                     row.get("global_outdated") or row.get("local_outdated")
                 ) else "status_ok") + "]"
+            elif i == 1:  # coluna #
+                val = str(row.get("id", ""))
+            elif i == 2:  # coluna PACKAGE
+                val = row.get("name", "")
+            elif i == 3:  # GLOBAL_VERSION
+                val = row.get("gver", "")
+            elif i == 4:  # GLOBAL_NEW
+                val = row.get("gnew", "")
+            elif i == 5:  # LOCAL_VERSION
+                val = row.get("lver", "")
+            elif i == 6:  # LOCAL_NEW
+                val = row.get("lnew", "")
+            elif i == 7:  # SIZE
+                val = row.get("size", "")
             else:
                 val = ""
             max_len = max(max_len, len(val))
@@ -837,16 +841,16 @@ def calculate_column_widths(terminal_width, rows, headers):
     for i in range(num_cols):
         base_width = max(min_widths[i], max_needed[i])
         # Coluna PACKAGE absorve sobra ou falta primeiro
-        if i == 1:
+        if i == 2:
             widths.append(max(floors[i], base_width + extra_space))
         else:
             widths.append(base_width)
 
     # Garante que a linha final nunca exceda o terminal.
-    # STATUS (última no modo completo) nunca encolhe: é o sinal calmo.
+    # STATUS (primeira coluna) fica fora da ordem de encolhimento.
     # ponytail: encolhimento guloso intencional; upgrade = truncar versões antes.
     overflow = sum(widths) + num_cols - 1 - terminal_width
-    for i in [1, 5, 3, 2, 4, 6, 0]:
+    for i in [2, 6, 4, 3, 5, 7, 1]:
         if i >= num_cols or overflow <= 0:
             continue
         cut = min(overflow, max(0, widths[i] - floors[i]))
@@ -1126,15 +1130,11 @@ def print_table_responsive(rows, terminal_width=None):
         return
 
     if terminal_width < 80:
-        headers = ["#", t("package"), t("global_version"), t("local_version")]
-        # Reserva espaco real da etiqueta STATUS ao fim da linha
-        status_w = 4
-        for r in rows[:50]:
-            label = t("status_update" if (
-                r.get("global_outdated") or r.get("local_outdated")
-            ) else "status_ok")
-            status_w = max(status_w, len(label) + 2)
-        widths = calculate_column_widths(terminal_width - status_w - 1, rows, headers)
+        headers = [
+            t("status"), "#", t("package"),
+            t("global_version"), t("local_version"),
+        ]
+        widths = calculate_column_widths(terminal_width, rows, headers)
         print(f"  {c('muted', '[' + t('compact_mode') + ']')}")
         print()
         print(c("muted", _build_row_line(headers, widths, header=True)))
@@ -1142,20 +1142,21 @@ def print_table_responsive(rows, terminal_width=None):
         for r in rows:
             outdated = bool(r.get("global_outdated") or r.get("local_outdated"))
             values = [
+                status_label(outdated),
                 str(r["id"]),
-                truncate_string(r["name"], widths[1], mode="middle"),
+                truncate_string(r["name"], widths[2], mode="middle"),
                 truncate_string(
-                    _combined_version(r["gver"], r["gnew"]), widths[2], mode="end"
+                    _combined_version(r["gver"], r["gnew"]), widths[3], mode="end"
                 ),
                 truncate_string(
-                    _combined_version(r["lver"], r["lnew"]), widths[3], mode="end"
+                    _combined_version(r["lver"], r["lnew"]), widths[4], mode="end"
                 ),
             ]
-            line = _build_row_line(values, widths)
-            print(line + " " + status_label(outdated))
+            print(_build_row_line(values, widths))
         return
 
     headers = [
+        t("status"),
         "#",
         t("package"),
         t("global_version"),
@@ -1163,7 +1164,6 @@ def print_table_responsive(rows, terminal_width=None):
         t("local_version"),
         t("local_new"),
         t("size"),
-        t("status"),
     ]
 
     # Calcula larguras dinâmicas
@@ -1179,14 +1179,14 @@ def print_table_responsive(rows, terminal_width=None):
     for r in rows:
         outdated = bool(r.get("global_outdated") or r.get("local_outdated"))
         values = [
+            status_label(outdated),
             str(r["id"]),
-            truncate_string(r["name"], widths[1], mode="middle"),
+            truncate_string(r["name"], widths[2], mode="middle"),
             r["gver"] or "-",
             r["gnew"] or "-",
             r["lver"] or "-",
             r["lnew"] or "-",
             r["size"] or "-",
-            status_label(outdated),
         ]
         print(_build_row_line(values, widths))
 
@@ -1201,16 +1201,16 @@ def _build_row_line(values, widths, header=False):
         header: True se for cabecalho (sem mudanca de alinhamento)
 
     Returns:
-        linha montada com # a direita e SIZE a direita
+        linha montada com # e SIZE a direita
     """
     parts = []
     total = len(values)
     for i, (val, w) in enumerate(zip(values, widths)):
         text = _truncate_visible(str(val), w, mode="end")
-        if i == 0:
+        if i == 1:
             visible = _visible_len(text)
             parts.append(text.rjust(w) if visible <= w else text)
-        elif total > 4 and i == total - 2 and not header:
+        elif total == 8 and i == 7 and not header:
             # Coluna SIZE a direita no modo completo
             visible = _visible_len(text)
             parts.append(text.rjust(w) if visible <= w else text)
@@ -1234,7 +1234,7 @@ def _print_table_ultra_compact(rows, terminal_width):
         print_separator(min(terminal_width, 60), "dashed")
         name_max = max(10, terminal_width - 20)
         name = truncate_string(r["name"], name_max, mode="middle")
-        print(f"  #{r['id']} {name} {status_label(outdated)}")
+        print(f"  {status_label(outdated)} #{r['id']} {name}")
 
         if r["gver"] or r["gnew"]:
             print(f"     G: {_combined_version(r['gver'], r['gnew'])}")
@@ -1457,6 +1457,73 @@ def collect_rows():
 # =====================================================
 # MAIN LOOP
 # =====================================================
+def _read_input_line(initial=""):
+    """
+    Lê uma linha editável, tratando Backspace sem deixar artefatos na tela.
+
+    Args:
+        initial: texto já digitado antes de iniciar a leitura
+
+    Returns:
+        texto final informado pelo usuário
+    """
+    value = initial
+    if initial:
+        sys.stdout.write(initial)
+        sys.stdout.flush()
+
+    while True:
+        ch = get_key()
+        if ch in ("\n", "\r"):
+            break
+        if ch in ("\x08", "\x7f"):
+            if value:
+                value = value[:-1]
+                sys.stdout.write("\b \b")
+                sys.stdout.flush()
+            continue
+        if ch and ch.isprintable():
+            value += ch
+            sys.stdout.write(ch)
+            sys.stdout.flush()
+
+    print()
+    return value
+
+
+def _selected_rows_from_input(value, rows):
+    """
+    Resolve todos os IDs da entrada ou rejeita a seleção inteira.
+
+    Args:
+        value: números dos pacotes separados por vírgulas
+        rows: linhas de pacotes exibidas na tabela
+
+    Returns:
+        lista de linhas selecionadas ou None se algum ID for inválido
+    """
+    row_by_id = {row["id"]: row for row in rows}
+    selected = []
+    selected_ids = set()
+
+    for token in value.split(","):
+        token = token.strip()
+        if not token.isdigit():
+            return None
+
+        try:
+            package_id = int(token)
+        except ValueError:
+            return None
+        if package_id not in row_by_id:
+            return None
+        if package_id not in selected_ids:
+            selected.append(row_by_id[package_id])
+            selected_ids.add(package_id)
+
+    return selected
+
+
 def main():
     load_language()
 
@@ -1537,50 +1604,27 @@ def main():
                 print_message("info", t("cancelled"))
                 time.sleep(min(DELAY, 1))
 
-        elif choice == "o":
-            print(choice)
-            print("  " + t("enter_number") + " ", end="", flush=True)
-            num_str = ""
-            while True:
-                ch = get_key()
-                if ch == "\n" or ch == "\r":
-                    break
-                if ch == "":
-                    continue
-                print(ch, end="", flush=True)
-                num_str += ch
-            print()
-
-            try:
-                num = int(num_str.strip())
-                row = next(r for r in rows if r["id"] == num)
-            except (TypeError, ValueError, StopIteration):
+        elif choice == "o" or choice.isdigit():
+            initial = choice
+            if choice == "o":
+                print(choice)
+                print("  " + t("enter_number") + " ", end="", flush=True)
+                initial = ""
+            selected_rows = _selected_rows_from_input(
+                _read_input_line(initial), rows
+            )
+            if selected_rows is None:
                 print_message("warn", t("invalid_number"))
                 time.sleep(min(DELAY, 1))
                 continue
 
-            if update_one(row):
+            updated = (
+                update_one(selected_rows[0])
+                if len(selected_rows) == 1
+                else update_all(selected_rows)
+            )
+            if updated:
                 need_fetch = True
-        elif choice.isdigit():
-            num_str = choice
-            print(choice, end="", flush=True)
-            while True:
-                ch = get_key()
-                if ch == "\n" or ch == "\r":
-                    break
-                if ch == "":
-                    continue
-                print(ch, end="", flush=True)
-                num_str += ch
-            print()
-            try:
-                num = int(num_str.strip())
-                row = next(r for r in rows if r["id"] == num)
-                if update_one(row):
-                    need_fetch = True
-            except (TypeError, ValueError, StopIteration):
-                print_message("warn", t("invalid_number"))
-                time.sleep(min(DELAY, 1))
         else:
             print(choice)
             print_message("warn", t("invalid_option"))

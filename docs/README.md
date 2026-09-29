@@ -2,7 +2,7 @@
 
 Terminal utility in Python to inspect and update local and global npm packages from a single screen.
 
-It shows installed versions, available updates, and package size, then lets you update everything outdated or only one selected package.
+It shows installed versions, available updates, and package size, then lets you update every outdated package or choose one or more packages by number.
 
 ---
 
@@ -18,7 +18,7 @@ It shows installed versions, available updates, and package size, then lets you 
 - **Responsive UI** that adapts to any terminal size automatically
 - **Pinned progress bar** with a scrolling viewport list during updates (no repeated bars, no terminal scroll)
 - **Instant keyboard controls** - no Enter key needed for menu actions; arrows and special keys are silently ignored
-- **Direct number input** - type a package number at the menu to update it directly
+- **Package selection** - update packages by number, including comma-separated selections
 - **Update All confirmation** - `(y/N)` prompt before updating all packages
 - **Demo mode** (`--test`) - 10 fictitious packages to preview the UI without touching npm
 - **Cached data loop** - fetches once and reuses; refetches on demand, after updates, or when stale (TTL)
@@ -73,6 +73,8 @@ project/
 │   ├── en.json
 │   ├── pt.json
 │   └── es.json
+├── tests/
+│   └── test_package_selection.py
 ├── docs/
 │   ├── README.md
 │   └── CHANGELOG.md
@@ -163,6 +165,7 @@ Note:
 
 | Column | Meaning |
 | --- | --- |
+| `STATUS` | `[ok]` when current, `[update]` when any scope is outdated |
 | `#` | Numeric identifier used to select one package |
 | `PACKAGE` | Package name |
 | `GLOBAL_VERSION` | Installed global version |
@@ -170,9 +173,10 @@ Note:
 | `LOCAL_VERSION` | Installed local version |
 | `LOCAL_NEW` | Latest version available for the local install |
 | `SIZE` | Combined size view for local/global installs |
-| `STATUS` | `[ok]` when current, `[update]` when any scope is outdated |
 
-Outdated entries are marked with `[update]` in the STATUS column. In compact mode (60-79 columns) versions are combined as `1.2.3 -> 1.3.0`.
+STATUS is the first column in every display mode, before the package number.
+In compact mode (60-79 columns), installed and available versions are combined
+as `1.2.3 -> 1.3.0`.
 
 ---
 
@@ -181,8 +185,8 @@ Outdated entries are marked with `[update]` in the STATUS column. In compact mod
 | Key | Action |
 | --- | --- |
 | `a` | Update all outdated packages with `(y/N)` confirmation (instant) |
-| `o` | Update one package by number (instant, then type number + Enter) |
-| `1-9` | Direct number input - type package number + Enter to update |
+| `o` | Select packages by number (instant, then type numbers + Enter) |
+| `1-9` | Direct number/list input, separated by commas + Enter |
 | `r` | Refresh package list (instant, no Enter needed) |
 | `q` | Exit (instant, no Enter needed) |
 
@@ -197,7 +201,9 @@ Menu actions use single-key input - just press the key without needing to hit En
 - Press `r` to immediately refresh the package list
 - Press `q` to immediately exit
 
-Package number selection (via `o` or direct number input) requires typing a number followed by Enter. Multi-digit numbers (e.g., 10, 99) work correctly.
+Package selection (via `o` or direct number input) requires Enter to submit.
+Enter multiple package numbers separated by commas, such as `1,3,5,6`.
+Backspace edits the current input before it is submitted.
 
 ### Direct Number Input
 
@@ -205,6 +211,7 @@ You can type a package number directly at the main menu without pressing `o` fir
 
 - Type `3` + `Enter` to update package #3
 - Type `1` + `0` + `Enter` to update package #10
+- Type `1,3,5` + `Enter` to update only packages #1, #3, and #5
 - Invalid numbers show an error message
 
 ### Update all
@@ -217,17 +224,19 @@ The app:
 - executes only the required `npm update` commands
 - refetches the package list once when finished
 
-### Update one
+### Update selected packages
 
-Press `o`, then type the package number shown in the first column.
+Press `o`, then enter one or more package numbers shown in the first column,
+separated by commas. You can also type the first number directly at the menu.
 
-The app updates only the outdated scope(s) for that package:
+For each selected package, the app updates only its outdated scope(s):
 
 - local only
 - global only
 - or both
 
-If the selected package is already current in both scopes, the app shows an "already updated" message and returns to the menu.
+- A single selected package that is already current shows an "already updated" message.
+- Invalid selections are rejected before any package update starts.
 
 ### Refresh
 
@@ -254,9 +263,9 @@ The table layout changes based on terminal width:
 
 | Mode | Terminal Width | Behavior |
 | --- | --- | --- |
-| **Full** | ≥80 columns | Complete table with all columns plus a STATUS column (`[ok]` / `[update]`) |
-| **Compact** | 60-79 columns | Combined versions (`1.2.3 -> 1.3.0`), STATUS kept at the end of the line |
-| **Ultra-Compact** | <60 columns | Vertical card list, one block per package |
+| **Full** | ≥80 columns | Complete table with STATUS first, then package number and all package columns |
+| **Compact** | 60-79 columns | STATUS and package number first, followed by combined versions |
+| **Ultra-Compact** | <60 columns | Vertical cards with STATUS before the package number |
 
 ### Smart Features
 
@@ -350,7 +359,8 @@ This ensures consistent behavior across all platforms without requiring manual c
 Current behavior:
 
 - Invalid menu input shows an `invalid option` message with a short pause (arrows/special keys are ignored silently and never reach this path)
-- Invalid package number shows an `invalid number` message with a short pause
+- Invalid package selections show an `invalid number` message with a short pause
+- Backspace edits the current package selection without leaving visual artifacts
 - Invalid JSON from npm list/outdated becomes an empty result
 - npm commands that exceed their timeout fail soft (empty result / `False`) with an `npm_timeout` warning; update timeouts are also listed as failed packages
 - Failed update commands are listed by name plus `update_failed`
@@ -383,7 +393,7 @@ All user-facing strings including table headers, menu options, progress bar labe
 
 ## Limitations
 
-- There is no automated test suite yet
+- There is no test framework; run the focused selection check with `python tests/test_package_selection.py`
 - Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time on the first load (later loads reuse the session cache)
 - `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment
