@@ -80,8 +80,8 @@ The file is structured into ASCII-bannered sections in this order:
    ultra-compact) plus `DEMO_ROWSPEC` / `collect_rows_demo`
 9. UPDATE — `npm update [pkg]` execution (`_npm_args`, `_run_tasks_frame`
    vs `_run_tasks_legacy`, `update_all` / `update_one`)
-10. DATA REFRESH — cached fetch loop (`collect_rows`, `need_fetch` flag,
-    `CACHE_TTL` staleness) with `ThreadPoolExecutor` fan-out
+10. DATA REFRESH — cached fetch loop (`collect_rows`, `CACHE_TTL`
+    staleness), progressive daemon-worker results, and queued refreshes
 11. MAIN LOOP — keyboard handling and dispatch (`a` / `o` / digits /
     `r` / `q`, `(y/N)` confirm)
 

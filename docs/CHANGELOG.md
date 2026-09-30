@@ -5,7 +5,18 @@ Base language is English; other languages live only in `locales/`.
 
 ## [Unreleased]
 
+### Fixed
+
+-c remove redundant status legend
+- Removed the redundant update legend from the menu; package status remains visible in the table.
+
 ### Added
+
+-c improve initial package loading
+- The package table appears after installed-package listings, while update checks and size measurements continue in the background.
+- Pending and failed update checks have explicit statuses, and update actions remain disabled until checks succeed.
+- `r` queues a refresh during collection; `q` exits without waiting for background workers.
+- Global package sizes share one `npm root -g` lookup and tolerate files disappearing during traversal.
 
 -c add multi-package selection
 - `o` and direct number input accept comma-separated IDs; Backspace edits the selection.

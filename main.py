@@ -2,11 +2,11 @@
 import subprocess
 import json
 import os
+import queue
 import re
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 
@@ -100,6 +100,33 @@ def get_key():
     return ch
 
 
+def get_key_timeout(timeout):
+    """
+    Aguarda uma tecla por um tempo limitado sem bloquear a coleta em segundo plano.
+
+    Args:
+        timeout: tempo maximo de espera em segundos
+
+    Returns:
+        tecla lida, string vazia para tecla especial ou None se nao houve tecla
+    """
+    if IS_WINDOWS:
+        import msvcrt
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if msvcrt.kbhit():
+                return get_key()
+            time.sleep(min(0.02, max(0, deadline - time.monotonic())))
+        return None
+
+    try:
+        import select
+        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        return get_key() if ready else None
+    except Exception:
+        return get_key()
+
+
 # =====================================================
 # CONFIG
 # =====================================================
@@ -113,6 +140,7 @@ NPM_UPDATE_TIMEOUT = int(os.environ.get("NPM_PM_UPDATE_TIMEOUT", 300))
 CACHE_TTL = int(os.environ.get("NPM_PM_TTL", 120))
 SIZE_CACHE = {}
 _TIMED_OUT = []
+_TIMED_OUT_LOCK = threading.Lock()
 COLOR_ENABLED = True
 USE_UNICODE = True
 DEMO_MODE = "--test" in sys.argv
@@ -336,9 +364,37 @@ def status_label(outdated):
     Returns:
         string como [ok] ou [atualizar] (traduzida via t())
     """
+    if isinstance(outdated, dict):
+        checks = []
+        if outdated.get("lver"):
+            checks.append(outdated.get("local_check", "ready"))
+        if outdated.get("gver"):
+            checks.append(outdated.get("global_check", "ready"))
+        if outdated.get("local_outdated") or outdated.get("global_outdated"):
+            return c("update", "[" + t("status_update") + "]")
+        if outdated.get("inventory_failed") or "failed" in checks:
+            return c("error", "[" + t("status_unknown") + "]")
+        if "pending" in checks:
+            return c("muted", "[" + t("status_checking") + "]")
+        outdated = False
     if outdated:
         return c("update", "[" + t("status_update") + "]")
     return c("ok", "[" + t("status_ok") + "]")
+
+
+def status_label_key(row):
+    if row.get("local_outdated") or row.get("global_outdated"):
+        return "update"
+    checks = []
+    if row.get("lver"):
+        checks.append(row.get("local_check", "ready"))
+    if row.get("gver"):
+        checks.append(row.get("global_check", "ready"))
+    if row.get("inventory_failed") or "failed" in checks:
+        return "unknown"
+    if "pending" in checks:
+        return "checking"
+    return "ok"
 
 
 def _processing_text():
@@ -511,7 +567,8 @@ def format_with_placeholders(text, **kwargs):
 # TERMINAL
 # =====================================================
 def clear():
-    os.system("cls" if os.name == "nt" else "clear")
+    if sys.stdout.isatty():
+        os.system("cls" if os.name == "nt" else "clear")
 
 
 def print_header(rows, terminal_width):
@@ -525,14 +582,25 @@ def print_header(rows, terminal_width):
     title = t("packages_title")
     total = len(rows)
     outdated = sum(1 for r in rows if r.get("local_outdated") or r.get("global_outdated"))
-    healthy = total - outdated
+    pending = sum(1 for r in rows if status_label_key(r) == "checking")
+    failed = sum(1 for r in rows if status_label_key(r) == "unknown")
+    healthy = total - outdated - pending - failed
 
     print(f"\n  {title}")
     sep = "·" if USE_UNICODE else "|"
     if terminal_width < 60:
-        print(f"  {total} {sep} {outdated} {t('summary_to_update')}")
+        summary = f"{total} {sep} {outdated} {t('summary_to_update')}"
+        if pending:
+            summary += f" {sep} {pending} {t('summary_checking')}"
+        if failed:
+            summary += f" {sep} {failed} {t('summary_unknown')}"
+        print(f"  {summary}")
     else:
         summary = f"{total} {sep} {outdated} {t('summary_to_update')} {sep} {healthy} {t('summary_ok')}"
+        if pending:
+            summary += f" {sep} {pending} {t('summary_checking')}"
+        if failed:
+            summary += f" {sep} {failed} {t('summary_unknown')}"
         print(f"  {c('muted', summary)}")
     print_separator(min(terminal_width - 2, 72), "single")
 
@@ -762,6 +830,34 @@ def _combined_version(current, latest):
     return current or "-"
 
 
+def _version_display(row, scope, compact=False):
+    current = row["gver" if scope == "global" else "lver"]
+    latest = row["gnew" if scope == "global" else "lnew"]
+    state = row.get(scope[0] + "_check", "ready")
+    if not current and not latest:
+        return "-"
+    if latest:
+        return _combined_version(current, latest) if compact else latest
+    if state == "pending":
+        return (
+            _combined_version(current, t("checking_version"))
+            if compact else t("checking_version")
+        )
+    if state == "failed":
+        return (
+            _combined_version(current, t("status_unknown"))
+            if compact else t("status_unknown")
+        )
+    return _combined_version(current, "") if compact else "-"
+
+
+def _size_display(row):
+    size = row.get("size", "")
+    if row.get("size_pending"):
+        return (size + " " if size else "") + t("measuring_size")
+    return size or "-"
+
+
 def calculate_column_widths(terminal_width, rows, headers):
     """
     Calcula larguras ótimas para cada coluna baseado no espaço disponível.
@@ -797,23 +893,19 @@ def calculate_column_widths(terminal_width, rows, headers):
         for row in rows[:50]:  # amostra dos primeiros 50 pacotes
             if num_cols <= 5:
                 if i == 0:
-                    val = "[" + t("status_update" if (
-                        row.get("global_outdated") or row.get("local_outdated")
-                    ) else "status_ok") + "]"
+                    val = _ANSI_RE.sub("", status_label(row))
                 elif i == 1:
                     val = str(row.get("id", ""))
                 elif i == 2:
                     val = row.get("name", "")
                 elif i == 3:
-                    val = _combined_version(row.get("gver", ""), row.get("gnew", ""))
+                    val = _version_display(row, "global", compact=True)
                 elif i == 4:
-                    val = _combined_version(row.get("lver", ""), row.get("lnew", ""))
+                    val = _version_display(row, "local", compact=True)
                 else:
                     val = header
             elif i == 0:  # coluna STATUS
-                val = "[" + t("status_update" if (
-                    row.get("global_outdated") or row.get("local_outdated")
-                ) else "status_ok") + "]"
+                val = _ANSI_RE.sub("", status_label(row))
             elif i == 1:  # coluna #
                 val = str(row.get("id", ""))
             elif i == 2:  # coluna PACKAGE
@@ -821,13 +913,13 @@ def calculate_column_widths(terminal_width, rows, headers):
             elif i == 3:  # GLOBAL_VERSION
                 val = row.get("gver", "")
             elif i == 4:  # GLOBAL_NEW
-                val = row.get("gnew", "")
+                val = _version_display(row, "global")
             elif i == 5:  # LOCAL_VERSION
                 val = row.get("lver", "")
             elif i == 6:  # LOCAL_NEW
-                val = row.get("lnew", "")
+                val = _version_display(row, "local")
             elif i == 7:  # SIZE
-                val = row.get("size", "")
+                val = _size_display(row)
             else:
                 val = ""
             max_len = max(max_len, len(val))
@@ -874,48 +966,79 @@ def run(cmd):
             timeout=NPM_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
-        _TIMED_OUT.append(cmd)
+        with _TIMED_OUT_LOCK:
+            _TIMED_OUT.append(cmd)
         return ""
     except Exception:
         return ""
     return result.stdout.strip()
 
 
+def _consume_timeout(cmd):
+    with _TIMED_OUT_LOCK:
+        if cmd not in _TIMED_OUT:
+            return False
+        _TIMED_OUT.remove(cmd)
+        return True
+
+
 def npm_list(global_mode=False):
+    return _npm_list_result(global_mode)[0]
+
+
+def _npm_list_result(global_mode=False):
     cmd = "npm list --depth=0 --json"
     if global_mode:
         cmd = "npm list -g --depth=0 --json"
 
     output = run(cmd)
+    timed_out = _consume_timeout(cmd)
     if not output:
-        return {}
+        return {}, False, timed_out
 
     try:
         data = json.loads(output)
     except Exception:
-        return {}
+        return {}, False, timed_out
 
     deps = data.get("dependencies", {})
+    if not isinstance(data, dict) or not isinstance(deps, dict):
+        return {}, False, timed_out
 
     # Filter out hidden/private packages (starting with .)
-    return {name: info for name, info in deps.items() if not name.startswith(".")}
+    return (
+        {name: info for name, info in deps.items() if not name.startswith(".")},
+        True,
+        timed_out,
+    )
 
 
 def npm_outdated(global_mode=False):
+    return _npm_outdated_result(global_mode)[0]
+
+
+def _npm_outdated_result(global_mode=False):
     cmd = "npm outdated --depth=0 --json"
     if global_mode:
         cmd = "npm outdated -g --depth=0 --json"
 
     output = run(cmd)
+    timed_out = _consume_timeout(cmd)
     if not output:
-        return {}
+        return {}, False, timed_out
 
     try:
         data = json.loads(output)
+        if not isinstance(data, dict):
+            return {}, False, timed_out
         # Filter out hidden/private packages (starting with .)
-        return {name: info for name, info in data.items() if not name.startswith(".")}
+        return (
+            {name: info for name, info in data.items() if not name.startswith(".")},
+            True,
+            timed_out,
+        )
     except Exception:
-        return {}
+        return {}, False, timed_out
 
 
 # =====================================================
@@ -934,7 +1057,20 @@ def npm_root(global_mode=False):
     return run("npm root -g") if global_mode else "node_modules"
 
 
-def get_pkg_size(name, global_mode=False, version=""):
+def get_pkg_size(name, global_mode=False, version="", base_path=None,
+                 cancel_event=None):
+    """Calcula e armazena em cache o tamanho instalado de um pacote.
+
+    Args:
+        name: nome do pacote
+        global_mode: True para pacote global
+        version: versao usada na chave do cache
+        base_path: raiz ja resolvida ou None para resolver dentro da funcao
+        cancel_event: sinal opcional para interromper a varredura
+
+    Returns:
+        tamanho formatado ou string vazia se o pacote nao existir
+    """
     if DEMO_MODE:
         for spec in DEMO_ROWSPEC:
             if spec[0] == name:
@@ -946,7 +1082,9 @@ def get_pkg_size(name, global_mode=False, version=""):
         return cached_size
 
     try:
-        base = npm_root(global_mode)
+        if cancel_event and cancel_event.is_set():
+            return ""
+        base = base_path if base_path is not None else npm_root(global_mode)
         path = os.path.join(base, name)
 
         if not os.path.isdir(path):
@@ -955,10 +1093,16 @@ def get_pkg_size(name, global_mode=False, version=""):
 
         total = 0
         for root, _, files in os.walk(path):
+            if cancel_event and cancel_event.is_set():
+                return ""
             for f in files:
+                if cancel_event and cancel_event.is_set():
+                    return ""
                 fp = os.path.join(root, f)
-                if os.path.exists(fp):
+                try:
                     total += os.path.getsize(fp)
+                except OSError:
+                    continue
 
         size = human_size(total)
     except Exception:
@@ -968,7 +1112,19 @@ def get_pkg_size(name, global_mode=False, version=""):
     return size
 
 
-def collect_sizes(local, global_, names):
+def collect_sizes(local, global_, names, cancel_event=None, on_result=None):
+    """Mede tamanhos em paralelo e publica resultados conforme terminam.
+
+    Args:
+        local: mapa de pacotes locais instalados
+        global_: mapa de pacotes globais instalados
+        names: nomes de pacotes a medir
+        cancel_event: sinal opcional para cancelar trabalhos pendentes
+        on_result: callback opcional chamado com chave e tamanho
+
+    Returns:
+        mapa de tamanhos por escopo e nome
+    """
     size_map = {}
     jobs = []
 
@@ -981,20 +1137,48 @@ def collect_sizes(local, global_, names):
     if not jobs:
         return size_map
 
+    if cancel_event and cancel_event.is_set():
+        return size_map
     max_workers = min(8, len(jobs))
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            (scope, name): executor.submit(
-                get_pkg_size,
-                name,
-                scope == "global",
-                version,
-            )
-            for scope, name, version in jobs
-        }
+    global_root = (
+        npm_root(True) if any(scope == "global" for scope, _, _ in jobs)
+        else None
+    )
+    work = queue.Queue()
+    for job in jobs:
+        work.put(job)
 
-        for key, future in futures.items():
-            size_map[key] = future.result()
+    def _measure():
+        while True:
+            job = work.get()
+            try:
+                if job is None:
+                    return
+                if cancel_event and cancel_event.is_set():
+                    continue
+                scope, name, version = job
+                size = get_pkg_size(
+                    name,
+                    scope == "global",
+                    version,
+                    global_root if scope == "global" else "node_modules",
+                    cancel_event,
+                )
+                if not (cancel_event and cancel_event.is_set()):
+                    key = (scope, name)
+                    size_map[key] = size
+                    if on_result:
+                        on_result(key, size)
+            finally:
+                work.task_done()
+
+    workers = [threading.Thread(target=_measure, daemon=True)
+               for _ in range(max_workers)]
+    for worker in workers:
+        worker.start()
+    for _ in workers:
+        work.put(None)
+    work.join()
 
     return size_map
 
@@ -1002,9 +1186,27 @@ def collect_sizes(local, global_, names):
 # =====================================================
 # TABLE
 # =====================================================
-def build_rows(local, global_, outdated_local, outdated_global):
+def build_rows(local, global_, outdated_local, outdated_global, size_map=None,
+               check_states=None, size_pending=False, inventory_failed=False):
+    """Monta as linhas da tabela sem repetir coletas ja iniciadas.
+
+    Args:
+        local: mapa de pacotes locais
+        global_: mapa de pacotes globais
+        outdated_local: atualizacoes locais disponiveis
+        outdated_global: atualizacoes globais disponiveis
+        size_map: tamanhos conhecidos ou None para medi-los
+        check_states: estado de cada consulta outdated
+        size_pending: True enquanto alguns tamanhos nao estao disponiveis
+        inventory_failed: True se uma listagem de pacotes falhou
+
+    Returns:
+        linhas ordenadas com IDs estaveis para o conjunto recebido
+    """
     names = sorted(set(local) | set(global_))
-    size_map = collect_sizes(local, global_, names)
+    if size_map is None:
+        size_map = collect_sizes(local, global_, names)
+    check_states = check_states or {}
     rows = []
 
     for i, name in enumerate(names, start=1):
@@ -1039,6 +1241,14 @@ def build_rows(local, global_, outdated_local, outdated_global):
                 "size": size_display,
                 "global_outdated": name in outdated_global,
                 "local_outdated": name in outdated_local,
+                "global_check": check_states.get("outdated_global", "ready"),
+                "local_check": check_states.get("outdated_local", "ready"),
+                "size_pending": size_pending and any(
+                    (scope, name) not in size_map
+                    for scope, installed in (("local", lver), ("global", gver))
+                    if installed
+                ),
+                "inventory_failed": inventory_failed,
             }
         )
 
@@ -1140,16 +1350,15 @@ def print_table_responsive(rows, terminal_width=None):
         print(c("muted", _build_row_line(headers, widths, header=True)))
         print_separator(sum(widths) + len(headers) - 1, "single")
         for r in rows:
-            outdated = bool(r.get("global_outdated") or r.get("local_outdated"))
             values = [
-                status_label(outdated),
+                status_label(r),
                 str(r["id"]),
                 truncate_string(r["name"], widths[2], mode="middle"),
                 truncate_string(
-                    _combined_version(r["gver"], r["gnew"]), widths[3], mode="end"
+                    _version_display(r, "global", compact=True), widths[3], mode="end"
                 ),
                 truncate_string(
-                    _combined_version(r["lver"], r["lnew"]), widths[4], mode="end"
+                    _version_display(r, "local", compact=True), widths[4], mode="end"
                 ),
             ]
             print(_build_row_line(values, widths))
@@ -1177,16 +1386,15 @@ def print_table_responsive(rows, terminal_width=None):
 
     # Imprime linhas
     for r in rows:
-        outdated = bool(r.get("global_outdated") or r.get("local_outdated"))
         values = [
-            status_label(outdated),
+            status_label(r),
             str(r["id"]),
             truncate_string(r["name"], widths[2], mode="middle"),
             r["gver"] or "-",
-            r["gnew"] or "-",
+            _version_display(r, "global"),
             r["lver"] or "-",
-            r["lnew"] or "-",
-            r["size"] or "-",
+            _version_display(r, "local"),
+            _size_display(r),
         ]
         print(_build_row_line(values, widths))
 
@@ -1230,20 +1438,19 @@ def _print_table_ultra_compact(rows, terminal_width):
     print()
 
     for r in rows:
-        outdated = bool(r.get("global_outdated") or r.get("local_outdated"))
         print_separator(min(terminal_width, 60), "dashed")
         name_max = max(10, terminal_width - 20)
         name = truncate_string(r["name"], name_max, mode="middle")
-        print(f"  {status_label(outdated)} #{r['id']} {name}")
+        print(f"  {status_label(r)} #{r['id']} {name}")
 
         if r["gver"] or r["gnew"]:
-            print(f"     G: {_combined_version(r['gver'], r['gnew'])}")
+            print(f"     G: {_version_display(r, 'global', compact=True)}")
 
         if r["lver"] or r["lnew"]:
-            print(f"     L: {_combined_version(r['lver'], r['lnew'])}")
+            print(f"     L: {_version_display(r, 'local', compact=True)}")
 
-        if r["size"]:
-            print(f"     {t('size')}: {r['size']}")
+        if r["size"] or r.get("size_pending"):
+            print(f"     {t('size')}: {_size_display(r)}")
         print()
 
 
@@ -1274,7 +1481,8 @@ def run_npm_cmd(args):
         )
         return result.returncode == 0
     except subprocess.TimeoutExpired:
-        _TIMED_OUT.append(" ".join(args))
+        with _TIMED_OUT_LOCK:
+            _TIMED_OUT.append(" ".join(args))
         return False
     except Exception:
         return False
@@ -1437,21 +1645,193 @@ def update_one(row):
 def collect_rows():
     if DEMO_MODE:
         return collect_rows_demo()
-    # These npm calls are independent, so collect them concurrently.
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {
-            "local": executor.submit(npm_list, False),
-            "global": executor.submit(npm_list, True),
-            "outdated_local": executor.submit(npm_outdated, False),
-            "outdated_global": executor.submit(npm_outdated, True),
-        }
+    results = queue.Queue()
+    queries = {
+        "local": lambda: _npm_list_result(False),
+        "global": lambda: _npm_list_result(True),
+        "outdated_local": lambda: _npm_outdated_result(False),
+        "outdated_global": lambda: _npm_outdated_result(True),
+    }
+    for name, query in queries.items():
+        _start_daemon_task(results, 0, name, query)
+    collected = {}
+    for _ in queries:
+        _, name, result = results.get()
+        collected[name] = result
+    local, global_ = collected["local"][0], collected["global"][0]
+    outdated_local = collected["outdated_local"][0]
+    outdated_global = collected["outdated_global"][0]
+    return build_rows(local, global_, outdated_local, outdated_global)
 
-        local_pkgs = futures["local"].result()
-        global_pkgs = futures["global"].result()
-        outdated_local = futures["outdated_local"].result()
-        outdated_global = futures["outdated_global"].result()
 
-    return build_rows(local_pkgs, global_pkgs, outdated_local, outdated_global)
+def _start_daemon_task(results, generation, name, task):
+    """Executa tarefa daemon e envia o resultado pela fila.
+
+    Args:
+        results: fila de eventos consumida pela interface
+        generation: identificador do ciclo de coleta
+        name: tipo do resultado
+        task: funcao sem argumentos que realiza o trabalho
+    """
+    def _run_task():
+        try:
+            result = task()
+        except Exception:
+            result = None
+        results.put((generation, name, result))
+
+    thread = threading.Thread(target=_run_task, daemon=True)
+    thread.start()
+
+
+def _new_collection(generation, results):
+    """Inicia consultas npm independentes para um novo ciclo.
+
+    Args:
+        generation: identificador crescente do ciclo
+        results: fila que recebe conclusoes dos workers
+
+    Returns:
+        estado inicial da coleta
+    """
+    collection = {
+        "generation": generation,
+        "cancel": threading.Event(),
+        "local": {},
+        "global": {},
+        "outdated_local": {},
+        "outdated_global": {},
+        "size_map": {},
+        "states": {
+            "local": "pending",
+            "global": "pending",
+            "outdated_local": "pending",
+            "outdated_global": "pending",
+        },
+        "list_ok": {"local": None, "global": None},
+        "size_state": "waiting",
+        "timed_out": False,
+        "failed": False,
+        "rows_ready": False,
+    }
+    queries = {
+        "local": lambda: _npm_list_result(False),
+        "global": lambda: _npm_list_result(True),
+        "outdated_local": lambda: _npm_outdated_result(False),
+        "outdated_global": lambda: _npm_outdated_result(True),
+    }
+    for name, query in queries.items():
+        _start_daemon_task(results, generation, name, query)
+    return collection
+
+
+def _collection_done(collection):
+    """Indica se consultas npm e tamanhos terminaram."""
+    return (
+        all(state != "pending" for state in collection["states"].values())
+        and collection["size_state"] == "ready"
+    )
+
+
+def _update_action_state(collection):
+    """Retorna pending, failed ou ready para os dados de atualizacao."""
+    if collection is None:
+        return "pending"
+    states = list(collection["states"].values())
+    if any(state == "pending" for state in states):
+        return "pending"
+    if any(state != "ready" for state in states):
+        return "failed"
+    return "ready"
+
+
+def _refresh_rows(collection):
+    """Reconstrui linhas usando somente resultados ja recebidos."""
+    if not collection["rows_ready"]:
+        return None
+    states = {
+        "outdated_local": collection["states"]["outdated_local"],
+        "outdated_global": collection["states"]["outdated_global"],
+    }
+    return build_rows(
+        collection["local"],
+        collection["global"],
+        collection["outdated_local"],
+        collection["outdated_global"],
+        size_map=collection["size_map"],
+        check_states=states,
+        size_pending=collection["size_state"] == "pending",
+        inventory_failed=any(
+            state == "failed" for state in collection["list_ok"].values()
+        ),
+    )
+
+
+def _start_size_collection(collection, results):
+    """Inicia tamanhos assim que as listagens instaladas terminam."""
+    names = sorted(set(collection["local"]) | set(collection["global"]))
+    if not names or collection["cancel"].is_set():
+        collection["size_state"] = "ready"
+        return
+    collection["size_state"] = "pending"
+
+    def _collect():
+        return collect_sizes(
+            collection["local"],
+            collection["global"],
+            names,
+            collection["cancel"],
+            lambda key, size: results.put((
+                collection["generation"], "size", (key, size)
+            )),
+        )
+
+    _start_daemon_task(
+        results, collection["generation"], "sizes_done", _collect
+    )
+
+
+def _apply_collection_events(collection, results):
+    """Aplica resultados prontos e informa se a tela precisa ser redesenhada."""
+    changed = False
+    while True:
+        try:
+            generation, name, result = results.get_nowait()
+        except queue.Empty:
+            break
+        if generation != collection["generation"]:
+            continue
+        if name == "size":
+            key, size = result
+            collection["size_map"][key] = size
+            changed = True
+            continue
+        if name == "sizes_done":
+            collection["size_map"] = result or {}
+            collection["size_state"] = "ready"
+            collection["timed_out"] = (
+                collection["timed_out"] or _consume_timeout("npm root -g")
+            )
+            changed = True
+            continue
+
+        if not isinstance(result, tuple) or len(result) != 3:
+            data, ok, timed_out = {}, False, False
+        else:
+            data, ok, timed_out = result
+        collection["states"][name] = "ready" if ok else "failed"
+        collection["timed_out"] = collection["timed_out"] or timed_out
+        collection["failed"] = collection["failed"] or not ok
+        if name in ("local", "global"):
+            collection[name] = data or {}
+            collection["list_ok"][name] = ok
+            if all(state is not None for state in collection["list_ok"].values()):
+                collection["rows_ready"] = True
+                _start_size_collection(collection, results)
+        else:
+            collection[name] = data or {}
+        changed = True
+    return changed
 
 
 # =====================================================
@@ -1526,83 +1906,156 @@ def _selected_rows_from_input(value, rows):
 
 def main():
     load_language()
+    results = queue.Queue()
+    rows = collect_rows_demo() if DEMO_MODE else None
+    active = None
+    last_collection = None
+    if DEMO_MODE:
+        last_collection = {
+            "states": {name: "ready" for name in (
+                "local", "global", "outdated_local", "outdated_global"
+            )},
+            "warning": "",
+        }
+    generation = 0
+    fetched_at = time.time() if DEMO_MODE else 0
+    refresh_requested = False
+    dirty = True
 
-    rows = None
-    fetched_at = 0
-    need_fetch = True
+    def start_fetch():
+        nonlocal active, last_collection, generation
+        generation += 1
+        active = _new_collection(generation, results)
+        last_collection = active
+
+    def stop_sizes_before_update(selected_rows):
+        nonlocal refresh_requested
+        has_updates = any(
+            row.get("local_outdated") or row.get("global_outdated")
+            for row in selected_rows
+        )
+        if active and active["size_state"] == "pending" and has_updates:
+            active["cancel"].set()
+            refresh_requested = True
+
+    if not DEMO_MODE:
+        start_fetch()
 
     while True:
-        if need_fetch or rows is None or (
-            CACHE_TTL > 0 and time.time() - fetched_at > CACHE_TTL
-        ):
-            clear()
-            spinner = start_spinner(t("collecting_data"))
-            try:
-                rows = collect_rows()
+        changed = False
+        had_no_rows = rows is None
+        if active:
+            changed = _apply_collection_events(active, results)
+            new_rows = _refresh_rows(active)
+            if new_rows is not None and (changed or rows is None):
+                rows = new_rows
+                changed = True
+
+            if _collection_done(active):
                 fetched_at = time.time()
-            finally:
-                stop_spinner(spinner)
-            timed_out = bool(_TIMED_OUT)
-            del _TIMED_OUT[:]
-            need_fetch = False
-        else:
-            timed_out = False
+                if active["timed_out"]:
+                    active["warning"] = "timeout"
+                elif active["failed"]:
+                    active["warning"] = "failed"
+                else:
+                    active["warning"] = ""
+                last_collection = active
+                active = None
+                changed = True
+                if refresh_requested:
+                    refresh_requested = False
+                    start_fetch()
 
-        clear()
+        if (not DEMO_MODE and active is None and not refresh_requested
+                and CACHE_TTL > 0 and time.time() - fetched_at > CACHE_TTL):
+            start_fetch()
+            changed = True
 
-        # Imprime cabeçalho informativo
-        terminal_width, _ = get_terminal_size()
+        if changed and (sys.stdout.isatty() or had_no_rows or active is None):
+            dirty = True
 
-        if DEMO_MODE:
-            print_message(
-                "warn",
-                truncate_string(t("demo_mode"), terminal_width - 6, mode="end"),
-            )
-        print_header(rows, terminal_width)
+        if dirty:
+            clear()
+            terminal_width, _ = get_terminal_size()
+            if DEMO_MODE:
+                print_message(
+                    "warn",
+                    truncate_string(t("demo_mode"), terminal_width - 6, mode="end"),
+                )
+            if rows is None:
+                print("\n  " + t("collecting_data"))
+            else:
+                print_header(rows, terminal_width)
+                print_table_responsive(rows, terminal_width)
 
-        # Imprime tabela responsiva
-        print_table_responsive(rows, terminal_width)
+            status = active or last_collection
+            if status and status.get("warning") == "timeout":
+                print_message("warn", t("npm_timeout"))
+            elif status and status.get("failed"):
+                print_message("warn", t("checks_failed"))
+            if refresh_requested:
+                print_message("info", t("refresh_pending"))
+            elif active and _update_action_state(active) == "pending" and rows:
+                print_message("info", t("checks_pending"))
 
-        if timed_out:
-            print_message("warn", t("npm_timeout"))
+            print("\n  " + c("muted", t("options")))
+            print(f"  {c('muted', '[a]')} {t('update_all')}")
+            print(f"  {c('muted', '[o]')} {t('update_one')}")
+            print(f"  {c('muted', '[r]')} {t('refresh')}")
+            print(f"  {c('muted', '[q]')} {t('exit')}")
+            print("\n  " + t("choose") + " ", end="", flush=True)
+            dirty = False
 
-        print("\n  " + c("muted", t("options")))
-        print(f"  {c('muted', '[a]')} {t('update_all')}")
-        print(f"  {c('muted', '[o]')} {t('update_one')}")
-        print(f"  {c('muted', '[r]')} {t('refresh')}")
-        print(f"  {c('muted', '[q]')} {t('exit')}")
-        print(f"  {c('muted', t('needs_update') + ': ' + t('status_update'))}")
-
-        print("\n  " + t("choose") + " ", end="", flush=True)
-        while True:
-            choice = get_key().strip().lower()
-            if choice == "" or choice in ("\n", "\r"):
-                continue  # setas, especiais e Enter avulso: sem erro
-            break
+        choice = get_key_timeout(0.08)
+        if choice is None or choice == "" or choice in ("\n", "\r"):
+            continue
+        choice = choice.strip().lower()
 
         if choice == "q":
             print(choice)
             print_message("info", t("bye"))
+            if active:
+                active["cancel"].set()
             break
 
         elif choice == "r":
             print(choice)
-            need_fetch = True
-            continue
+            if active:
+                refresh_requested = True
+                active["cancel"].set()
+                dirty = True
+            elif not DEMO_MODE:
+                start_fetch()
+                dirty = True
+            else:
+                dirty = True
 
         elif choice == "a":
             print(choice)
+            if _update_action_state(active or last_collection) != "ready":
+                state = _update_action_state(active or last_collection)
+                print_message("warn", t("checks_pending" if state == "pending" else "checks_failed"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
             print("  " + t("confirm_update_all") + " (y/N) ", end="", flush=True)
             confirm = ""
             while confirm == "":
                 confirm = get_key().strip().lower()
             print(confirm)
             if confirm == "y":
+                stop_sizes_before_update(rows or [])
                 if update_all(rows):
-                    need_fetch = True
+                    if active:
+                        refresh_requested = True
+                        active["cancel"].set()
+                    else:
+                        start_fetch()
+                    dirty = True
             else:
                 print_message("info", t("cancelled"))
                 time.sleep(min(DELAY, 1))
+                dirty = True
 
         elif choice == "o" or choice.isdigit():
             initial = choice
@@ -1610,25 +2063,42 @@ def main():
                 print(choice)
                 print("  " + t("enter_number") + " ", end="", flush=True)
                 initial = ""
+            if rows is None:
+                print_message("warn", t("checks_pending"))
+                dirty = True
+                continue
             selected_rows = _selected_rows_from_input(
                 _read_input_line(initial), rows
             )
             if selected_rows is None:
                 print_message("warn", t("invalid_number"))
                 time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+            if _update_action_state(active or last_collection) != "ready":
+                state = _update_action_state(active or last_collection)
+                print_message("warn", t("checks_pending" if state == "pending" else "checks_failed"))
+                dirty = True
                 continue
 
+            stop_sizes_before_update(selected_rows)
             updated = (
                 update_one(selected_rows[0])
                 if len(selected_rows) == 1
                 else update_all(selected_rows)
             )
             if updated:
-                need_fetch = True
+                if active:
+                    refresh_requested = True
+                    active["cancel"].set()
+                else:
+                    start_fetch()
+            dirty = True
         else:
             print(choice)
             print_message("warn", t("invalid_option"))
             time.sleep(min(DELAY, 1))
+            dirty = True
 
 
 if __name__ == "__main__":

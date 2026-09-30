@@ -21,19 +21,23 @@ It shows installed versions, available updates, and package size, then lets you 
 - **Package selection** - update packages by number, including comma-separated selections
 - **Update All confirmation** - `(y/N)` prompt before updating all packages
 - **Demo mode** (`--test`) - 10 fictitious packages to preview the UI without touching npm
+- **Progressive loading** - installed packages appear before update checks and size measurements finish
 - **Cached data loop** - fetches once and reuses; refetches on demand, after updates, or when stale (TTL)
 - **Timeout-safe npm calls** - every command has a timeout and fails soft with a warning
 - **Cross-platform support** for Windows, Linux, and macOS
 
 ## Performance Notes
 
-The current implementation is optimized to avoid repeated work:
+The application prioritizes the first package list and continues enrichment in the background:
 
-- `npm list` and `npm outdated` are collected in parallel (`--depth=0` everywhere)
-- Package size calculation runs in parallel
+- Local and global `npm list` queries run in parallel. The first table appears as soon as both finish, without waiting for registry queries or filesystem traversal.
+- `npm outdated` queries run in parallel with size calculation. Update actions stay unavailable until all package and update checks succeed; pending or failed checks never appear as up to date.
+- Package sizes are measured in the background by up to eight daemon workers. The global npm root is resolved once per collection, and individual file errors do not stop the scan.
 - Size results are cached by package scope and version for the whole session — refresh (`r`) never clears the cache; new versions simply miss and get measured once
-- The main loop reuses fetched data: it refetches only on `r`, after an update, or when the data is older than the TTL (default 120s)
+- The main loop refreshes the display as results arrive and reuses fetched data: it refetches only on `r`, after an update, or when the data is older than the TTL (default 120s)
 - Every npm call has a timeout and fails soft (empty result / `False`) with a warning instead of hanging
+- Pressing `r` during collection queues one refresh and cancels outstanding size traversal. Pressing `q` exits without waiting for daemon workers.
+- Redirected output prints the initial and completed tables sequentially without terminal-clear sequences.
 
 Tuning via environment:
 
@@ -74,7 +78,8 @@ project/
 │   ├── pt.json
 │   └── es.json
 ├── tests/
-│   └── test_package_selection.py
+│   ├── test_package_selection.py
+│   └── test_progressive_loading.py
 ├── docs/
 │   ├── README.md
 │   └── CHANGELOG.md
@@ -99,7 +104,9 @@ The app collects:
 
 Hidden/private packages whose names start with `.` are filtered out.
 
-If `npm list` or `npm outdated` returns invalid or empty JSON — or times out — the app falls back to an empty result instead of crashing. On timeouts a warning is shown and the last known data is kept on screen.
+If `npm list` or `npm outdated` returns invalid or empty JSON — or times out — the app falls back to an empty result instead of crashing. A failed listing or update check is shown as unknown and disables package updates until a successful refresh. On timeouts a warning is shown.
+
+After both installed-package listings finish, the table appears with update-check and size states marked as pending. Update versions and sizes fill in as their background tasks finish. The `q` key remains available during collection; refresh requests wait for the current npm queries to finish before starting another cycle.
 
 ### Size calculation
 
@@ -165,7 +172,7 @@ Note:
 
 | Column | Meaning |
 | --- | --- |
-| `STATUS` | `[ok]` when current, `[update]` when any scope is outdated |
+| `STATUS` | `[ok]` when current, `[update]` when any scope is outdated, `[checking]` or `[unknown]` while update status is pending or unavailable |
 | `#` | Numeric identifier used to select one package |
 | `PACKAGE` | Package name |
 | `GLOBAL_VERSION` | Installed global version |
@@ -385,7 +392,7 @@ Adding a new language requires:
 1. Creating a new locale JSON file
 2. Adding it to the language selection mapping in `main.py`
 
-### Locale Keys (56 per file)
+### Locale Keys (64 per file)
 
 All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels and the `confirm_update_all` prompt. Keep the three files in sync — every `t()` key must exist in all of them.
 
@@ -393,8 +400,8 @@ All user-facing strings including table headers, menu options, progress bar labe
 
 ## Limitations
 
-- There is no test framework; run the focused selection check with `python tests/test_package_selection.py`
-- Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time on the first load (later loads reuse the session cache)
+- There is no test framework; run the focused checks with `python tests/test_package_selection.py` and `python tests/test_progressive_loading.py`
+- Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time to finish; the package list remains usable while sizes are measured
 - `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment
 
