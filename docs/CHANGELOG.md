@@ -12,6 +12,11 @@ Base language is English; other languages live only in `locales/`.
 
 ### Added
 
+-c Add confirmed package uninstall
+- `u` uninstalls one selected package after `y/n` and exact-name confirmations.
+- Global packages use `npm uninstall -g`; when a package exists in both scopes,
+  the local installation is removed first.
+
 -c improve initial package loading
 - The package table appears after installed-package listings, while update checks and size measurements continue in the background.
 - Pending and failed update checks have explicit statuses, and update actions remain disabled until checks succeed.

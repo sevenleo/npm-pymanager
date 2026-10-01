@@ -62,5 +62,16 @@
   "update_success": "✓",
   "update_failed_symbol": "✗",
   "update_processing": "⟳",
-  "confirm_update_all": "Atualizar todos os pacotes desatualizados?"
+  "confirm_update_all": "Atualizar todos os pacotes desatualizados?",
+  "uninstall_one": "Desinstalar um pacote",
+  "enter_uninstall_number": "Digite o número de um pacote:",
+  "nothing_to_uninstall": "Não há pacotes instalados para desinstalar.",
+  "inventory_failed": "A listagem falhou; não foi possível verificar o escopo da instalação.",
+  "uninstall_unavailable": "Não foi possível confirmar uma instalação deste pacote.",
+  "confirm_uninstall": "Desinstalar {name} do escopo {scope}?",
+  "confirm_package_name": "Digite {name} exatamente para confirmar:",
+  "invalid_package_name": "O nome não corresponde. Desinstalação cancelada.",
+  "uninstalling": "Desinstalando pacote {name} ({scope})...",
+  "uninstall_done": "Desinstalação concluída: {name}.",
+  "uninstall_failed": "Não foi possível desinstalar {name}."
 }

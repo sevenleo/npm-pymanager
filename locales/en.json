@@ -62,5 +62,16 @@
   "update_success": "✓",
   "update_failed_symbol": "✗",
   "update_processing": "⟳",
-  "confirm_update_all": "Update all outdated packages?"
+  "confirm_update_all": "Update all outdated packages?",
+  "uninstall_one": "Uninstall one package",
+  "enter_uninstall_number": "Enter one package number:",
+  "nothing_to_uninstall": "There are no installed packages to uninstall.",
+  "inventory_failed": "Package listing failed; the install scope cannot be verified.",
+  "uninstall_unavailable": "This package has no verified installation to uninstall.",
+  "confirm_uninstall": "Uninstall {name} from {scope}?",
+  "confirm_package_name": "Type {name} exactly to confirm:",
+  "invalid_package_name": "Package name did not match. Uninstall cancelled.",
+  "uninstalling": "Uninstalling {scope} package {name}...",
+  "uninstall_done": "Uninstall finished: {name}.",
+  "uninstall_failed": "Could not uninstall {name}."
 }

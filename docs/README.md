@@ -1,8 +1,8 @@
 # NPM Package Manager TUI (Python)
 
-Terminal utility in Python to inspect and update local and global npm packages from a single screen.
+Terminal utility in Python to inspect, update, and uninstall local and global npm packages from a single screen.
 
-It shows installed versions, available updates, and package size, then lets you update every outdated package or choose one or more packages by number.
+It shows installed versions, available updates, and package size, then lets you update packages or safely uninstall one selected package.
 
 ---
 
@@ -14,11 +14,13 @@ It shows installed versions, available updates, and package size, then lets you 
 - Calculates disk usage for local and global installs in a single `SIZE` column
 - Supports English, Portuguese, and Spanish
 - Updates only packages that are actually outdated
-- Refreshes the table automatically after each update cycle
+- Refreshes the table automatically after package updates and uninstall attempts
+- Uninstalls one selected package after a `y/n` prompt and exact package-name confirmation
 - **Responsive UI** that adapts to any terminal size automatically
 - **Pinned progress bar** with a scrolling viewport list during updates (no repeated bars, no terminal scroll)
 - **Instant keyboard controls** - no Enter key needed for menu actions; arrows and special keys are silently ignored
 - **Package selection** - update packages by number, including comma-separated selections
+- **Confirmed uninstall** - removes one local or global installation at a time after two confirmations
 - **Update All confirmation** - `(y/N)` prompt before updating all packages
 - **Demo mode** (`--test`) - 10 fictitious packages to preview the UI without touching npm
 - **Progressive loading** - installed packages appear before update checks and size measurements finish
@@ -46,7 +48,7 @@ Tuning via environment:
 | `NPM_PM_DELAY` | `2` | Pause after update confirmations |
 | `NPM_PM_TTL` | `120` | Seconds before idle data is considered stale (`0` disables auto-refresh) |
 | `NPM_PM_TIMEOUT` | `90` | Timeout for `npm list` / `outdated` / `root` queries |
-| `NPM_PM_UPDATE_TIMEOUT` | `300` | Timeout for each `npm update` command |
+| `NPM_PM_UPDATE_TIMEOUT` | `300` | Timeout for each `npm update` or `npm uninstall` command |
 | `NPM_PM_ASCII` | unset | Set to `1` to force ASCII fallback |
 | `NO_COLOR` | unset | Set to disable all ANSI colors |
 
@@ -79,7 +81,8 @@ project/
 │   └── es.json
 ├── tests/
 │   ├── test_package_selection.py
-│   └── test_progressive_loading.py
+│   ├── test_progressive_loading.py
+│   └── test_uninstall.py
 ├── docs/
 │   ├── README.md
 │   └── CHANGELOG.md
@@ -149,7 +152,7 @@ python main.py --test
 ```
 
 - Shows 10 fictitious packages: 4 up to date, 5 needing update, 1 (`left-pad`) that fails with `[x]`
-- Updates are simulated (~0.4s each) — no real `npm update` runs, no files change
+- Package actions are simulated (~0.4s each) — no real npm commands run, no files change
 - Combines with `--no-color`; language selection still appears first
 
 ### Language Selection
@@ -193,6 +196,7 @@ as `1.2.3 -> 1.3.0`.
 | --- | --- |
 | `a` | Update all outdated packages with `(y/N)` confirmation (instant) |
 | `o` | Select packages by number (instant, then type numbers + Enter) |
+| `u` | Uninstall one package with two confirmations (instant) |
 | `1-9` | Direct number/list input, separated by commas + Enter |
 | `r` | Refresh package list (instant, no Enter needed) |
 | `q` | Exit (instant, no Enter needed) |
@@ -205,6 +209,7 @@ Menu actions use single-key input - just press the key without needing to hit En
 
 - Press `a` to ask for confirmation before updating all outdated packages
 - Press `o` to immediately enter package selection mode
+- Press `u` to enter single-package uninstall mode
 - Press `r` to immediately refresh the package list
 - Press `q` to immediately exit
 
@@ -245,6 +250,20 @@ For each selected package, the app updates only its outdated scope(s):
 - A single selected package that is already current shows an "already updated" message.
 - Invalid selections are rejected before any package update starts.
 
+### Uninstall one package
+
+Press `u`, enter one package number, confirm with `y`, then type the exact
+package name. Any other first response or a name mismatch cancels the action.
+
+- Local installations use `npm uninstall <name>`; global installations use
+  `npm uninstall -g <name>`.
+- If the selected package exists in both scopes, the local installation is
+  removed first. Refresh the list and repeat to remove its global installation.
+- A failed inventory check blocks uninstalling because the package scope cannot
+  be verified. After a real npm attempt, the list is refreshed to show its state.
+- Demo mode simulates the command and removes the selected scope from its
+  fictitious table only.
+
 ### Refresh
 
 Press `r` to force a refresh of the package list:
@@ -254,7 +273,7 @@ Press `r` to force a refresh of the package list:
 - Reloads package data from npm
 - Re-renders the table with current information
 
-Without `r`, data is reused automatically and only refetched after an update or when older than the TTL (`NPM_PM_TTL`, default 120s).
+Without `r`, data is reused automatically and only refetched after an update or uninstall, or when older than the TTL (`NPM_PM_TTL`, default 120s).
 
 Use `r` when you've installed/uninstalled packages externally and want to see updated data.
 
@@ -373,7 +392,8 @@ Current behavior:
 - Failed update commands are listed by name plus `update_failed`
 - Unicode fallbacks (ASCII) prevent crashes on Windows terminals with legacy code pages
 - Graceful fallback when terminal size detection fails
-- Update All confirmation cancels on any key other than `y`
+- Update All and uninstall confirmations cancel on any key other than `y`
+- Uninstall requires the exact package name and blocks when inventory failed
 
 ---
 
@@ -392,15 +412,15 @@ Adding a new language requires:
 1. Creating a new locale JSON file
 2. Adding it to the language selection mapping in `main.py`
 
-### Locale Keys (64 per file)
+### Locale Keys (75 per file)
 
-All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels and the `confirm_update_all` prompt. Keep the three files in sync — every `t()` key must exist in all of them.
+All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels, and confirmation prompts. Keep the three files in sync — every `t()` key must exist in all of them.
 
 ---
 
 ## Limitations
 
-- There is no test framework; run the focused checks with `python tests/test_package_selection.py` and `python tests/test_progressive_loading.py`
+- There is no test framework; run the focused checks with `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
 - Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time to finish; the package list remains usable while sizes are measured
 - `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment

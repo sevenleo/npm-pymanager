@@ -1272,20 +1272,31 @@ DEMO_ROWSPEC = [
 ]
 
 
-def collect_rows_demo():
+def collect_rows_demo(uninstalled=None):
     """
     Monta 10 linhas ficticias no mesmo formato de build_rows.
 
     4 pacotes ok, 5 com update e 1 (left-pad) que falha ao atualizar.
     Nenhum comando npm ou acesso ao disco e executado.
 
+    Args:
+        uninstalled: pares (nome, escopo) removidos apenas na simulacao
+
     Returns:
         lista de dicionarios de pacotes ordenada por nome
     """
+    uninstalled = uninstalled or set()
     rows = []
-    for i, (name, gver, gnew, lver, lnew, gsize, lsize) in enumerate(
-        sorted(DEMO_ROWSPEC, key=lambda spec: spec[0]), start=1
+    for name, gver, gnew, lver, lnew, gsize, lsize in sorted(
+        DEMO_ROWSPEC, key=lambda spec: spec[0]
     ):
+        if (name, "GLOBAL") in uninstalled:
+            gver = gnew = gsize = ""
+        if (name, "LOCAL") in uninstalled:
+            lver = lnew = lsize = ""
+        if not gver and not lver:
+            continue
+
         if gsize and lsize:
             size_display = f"{gsize}(G) {lsize}(L)"
         elif gsize:
@@ -1297,7 +1308,7 @@ def collect_rows_demo():
 
         rows.append(
             {
-                "id": i,
+                "id": len(rows) + 1,
                 "name": name,
                 "gver": gver,
                 "gnew": gnew,
@@ -1458,8 +1469,8 @@ def run_npm_cmd(args):
     """
     Executa comando npm com compatibilidade Windows/Linux/Mac.
 
-    No modo demo (--test) apenas simula: espera 0.4s e falha somente
-    para o pacote DEMO_FAIL_NAME. Nenhum subprocess e iniciado.
+    No modo demo (--test) simula comandos de pacote: espera 0.4s e falha
+    somente para o pacote DEMO_FAIL_NAME. Nenhum subprocess e iniciado.
 
     Args:
         args: lista de argumentos do comando npm
@@ -1505,6 +1516,62 @@ def _npm_args(scope, name):
     if scope == "GLOBAL":
         return ["npm", "update", "-g", name]
     return ["npm", "update", name]
+
+
+def _npm_uninstall_args(scope, name):
+    """Monta o comando npm para remover uma instalacao do pacote.
+
+    Args:
+        scope: "LOCAL" ou "GLOBAL"
+        name: nome do pacote
+
+    Returns:
+        lista de argumentos para run_npm_cmd
+    """
+    args = ["npm", "uninstall"]
+    if scope == "GLOBAL":
+        args.append("-g")
+    args.append(name)
+    return args
+
+
+def _uninstall_scope(row):
+    """Retorna o escopo seguro, priorizando a instalacao local.
+
+    Args:
+        row: linha selecionada da tabela
+
+    Returns:
+        "LOCAL", "GLOBAL" ou None se o escopo nao puder ser confirmado
+    """
+    if row.get("inventory_failed"):
+        return None
+    if row.get("lver"):
+        return "LOCAL"
+    if row.get("gver"):
+        return "GLOBAL"
+    return None
+
+
+def uninstall_one(row, scope):
+    """Remove uma instalacao e exibe o resultado do comando npm.
+
+    Args:
+        row: linha selecionada da tabela
+        scope: "LOCAL" ou "GLOBAL"
+
+    Returns:
+        True se npm uninstall terminar com codigo zero
+    """
+    name = row["name"]
+    print("  " + t("uninstalling").format(
+        scope=t("local" if scope == "LOCAL" else "global"), name=name
+    ))
+    succeeded = run_npm_cmd(_npm_uninstall_args(scope, name))
+    key = "uninstall_done" if succeeded else "uninstall_failed"
+    print_message("ok" if succeeded else "error", t(key).format(name=name))
+    time.sleep(min(DELAY, 1))
+    return succeeded
 
 
 def _run_tasks_frame(tasks):
@@ -1908,6 +1975,7 @@ def main():
     load_language()
     results = queue.Queue()
     rows = collect_rows_demo() if DEMO_MODE else None
+    demo_uninstalled = set()
     active = None
     last_collection = None
     if DEMO_MODE:
@@ -2001,6 +2069,7 @@ def main():
             print("\n  " + c("muted", t("options")))
             print(f"  {c('muted', '[a]')} {t('update_all')}")
             print(f"  {c('muted', '[o]')} {t('update_one')}")
+            print(f"  {c('muted', '[u]')} {t('uninstall_one')}")
             print(f"  {c('muted', '[r]')} {t('refresh')}")
             print(f"  {c('muted', '[q]')} {t('exit')}")
             print("\n  " + t("choose") + " ", end="", flush=True)
@@ -2056,6 +2125,81 @@ def main():
                 print_message("info", t("cancelled"))
                 time.sleep(min(DELAY, 1))
                 dirty = True
+
+        elif choice == "u":
+            print(choice)
+            if rows is None:
+                print_message("warn", t("collecting_data"))
+                dirty = True
+                continue
+            if not rows:
+                print_message("info", t("nothing_to_uninstall"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+
+            print("  " + t("enter_uninstall_number") + " ", end="", flush=True)
+            number = _read_input_line().strip()
+            selected_rows = (
+                _selected_rows_from_input(number, rows)
+                if number.isdigit() else None
+            )
+            if selected_rows is None or len(selected_rows) != 1:
+                print_message("warn", t("invalid_number"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+
+            row = selected_rows[0]
+            if row.get("inventory_failed"):
+                print_message("warn", t("inventory_failed"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+
+            scope = _uninstall_scope(row)
+            if scope is None:
+                print_message("warn", t("uninstall_unavailable"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+
+            scope_label = t("local" if scope == "LOCAL" else "global")
+            print("  " + t("confirm_uninstall").format(
+                name=row["name"], scope=scope_label
+            ) + " (y/n) ", end="", flush=True)
+            confirm = ""
+            while not confirm:
+                confirm = get_key().strip().lower()
+            print(confirm)
+
+            if confirm != "y":
+                print_message("info", t("cancelled"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+
+            print("  " + t("confirm_package_name").format(
+                name=row["name"]
+            ) + " ", end="", flush=True)
+            typed_name = _read_input_line()
+            if typed_name != row["name"]:
+                print_message("info", t("invalid_package_name"))
+                time.sleep(min(DELAY, 1))
+                dirty = True
+                continue
+
+            succeeded = uninstall_one(row, scope)
+            if DEMO_MODE:
+                if succeeded:
+                    demo_uninstalled.add((row["name"], scope))
+                    rows = collect_rows_demo(demo_uninstalled)
+            elif active:
+                refresh_requested = True
+                active["cancel"].set()
+            else:
+                start_fetch()
+            dirty = True
 
         elif choice == "o" or choice.isdigit():
             initial = choice

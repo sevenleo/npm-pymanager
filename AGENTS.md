@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A terminal user interface (TUI) for managing npm packages interactively. Written in pure Python 3 stdlib (no external dependencies). Shells out to `npm list`, `npm outdated`, and `npm update` commands.
+A terminal user interface (TUI) for managing npm packages interactively. Written in pure Python 3 stdlib (no external dependencies). Shells out to `npm list`, `npm outdated`, `npm update`, and `npm uninstall` commands.
 
 ## Tech Stack
 
@@ -12,17 +12,22 @@ A terminal user interface (TUI) for managing npm packages interactively. Written
 
 ## Build / Test / Lint Commands
 
-There is **no build system**, **no test suite**, and **no linter/formatter configured**. The project runs directly as a script:
+There is **no build system**, **no test framework**, and **no linter/formatter configured**. The project runs directly as a script:
 
 ```bash
 # Run the app
 python main.py
 
-# Verify syntax (the only validation available)
+# Run focused checks
+python tests/test_package_selection.py
+python tests/test_progressive_loading.py
+python tests/test_uninstall.py
+
+# Verify syntax
 python -c "import ast; ast.parse(open('main.py').read()); print('OK')"
 ```
 
-If you add code, verify it works by running `python main.py` and exercising the changed path. Do NOT introduce external dependencies.
+If you add code, run the focused checks and exercise the changed path with `python main.py --test` where applicable. Do NOT introduce external dependencies.
 
 ## Code Style Guidelines
 
@@ -72,18 +77,20 @@ The file is structured into ASCII-bannered sections in this order:
    `truncate_string`, separators, spinners, message prefixes
 5. TERMINAL — `clear`, `print_header`, progress bar lines, frame/viewport
    rendering (`_build_progress_frame`, `_viewport_window`, `_frame_emit`)
-6. NPM HELPERS — `npm list --json`, `npm outdated --json`, `npm update`
+6. NPM HELPERS — `npm list --json`, `npm outdated --json`, `npm update`,
+   `npm uninstall`
    via `run` / `run_npm_cmd` with timeouts and fail-soft defaults
 7. SIZE — `os.walk` traversal + `human_size`, `npm_root` (`lru_cache`),
    per-scope/version `SIZE_CACHE`, parallel `collect_sizes`
 8. TABLE — drawing logic for the package table (full / compact /
    ultra-compact) plus `DEMO_ROWSPEC` / `collect_rows_demo`
-9. UPDATE — `npm update [pkg]` execution (`_npm_args`, `_run_tasks_frame`
-   vs `_run_tasks_legacy`, `update_all` / `update_one`)
+9. UPDATE — `npm update [pkg]` and `npm uninstall [pkg]` execution
+   (`_npm_args`, `_npm_uninstall_args`, `update_all` / `update_one` /
+   `uninstall_one`)
 10. DATA REFRESH — cached fetch loop (`collect_rows`, `CACHE_TTL`
     staleness), progressive daemon-worker results, and queued refreshes
-11. MAIN LOOP — keyboard handling and dispatch (`a` / `o` / digits /
-    `r` / `q`, `(y/N)` confirm)
+11. MAIN LOOP — keyboard handling and dispatch (`a` / `o` / `u` / digits /
+    `r` / `q`; `(y/N)` and exact-name uninstall confirmations)
 
 ### Docs
 - User docs live in `docs/` (`README.md`, `CHANGELOG.md`), not at root.
@@ -95,8 +102,9 @@ The file is structured into ASCII-bannered sections in this order:
 
 ### Testing
 - No test framework is set up. Do NOT add one without explicit user request.
-- If you modify logic, manually verify with `python main.py`
-- The `docs/README.md` explicitly states "There is no automated test suite yet"
+- Focused assert-based checks live in `tests/`; run the scripts listed above when relevant.
+- Exercise user-facing changes with `python main.py --test` where applicable.
+- The `docs/README.md` documents the focused checks and absence of a test framework.
 
 ### Git
 - Commits are short lowercase English phrases without conventional-commit prefixes
