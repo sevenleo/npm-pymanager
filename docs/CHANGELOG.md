@@ -7,6 +7,10 @@ Base language is English; other languages live only in `locales/`.
 
 ### Fixed
 
+- Fix nested Linux raw input
+- get_key_timeout() uses a single raw section without nested get_key() calls.
+- getch() degrades safely without a TTY; language selection defaults to English.
+
 -c Fix Linux key input
 - Linux menu keys are read immediately without waiting for Enter.
 - Failed key polling no longer falls back to an unbounded read.
@@ -15,6 +19,10 @@ Base language is English; other languages live only in `locales/`.
 - Removed the redundant update legend from the menu; package status remains visible in the table.
 
 ### Added
+
+- Show activity spinner during update and uninstall
+- A spinner animates on the current package line while npm runs,
+  so a single large package no longer looks frozen.
 
 -c Add confirmed package uninstall
 - `u` uninstalls one selected package after `y/n` and exact-name confirmations.

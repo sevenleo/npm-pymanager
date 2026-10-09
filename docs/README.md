@@ -18,6 +18,7 @@ It shows installed versions, available updates, and package size, then lets you 
 - Uninstalls one selected package after a `y/n` prompt and exact package-name confirmation
 - **Responsive UI** that adapts to any terminal size automatically
 - **Pinned progress bar** with a scrolling viewport list during updates (no repeated bars, no terminal scroll)
+- **Activity spinner** on the current package line while each `npm update` or `npm uninstall` runs (single large packages no longer look frozen)
 - **Instant keyboard controls** - no Enter key needed for menu actions; arrows and special keys are silently ignored
 - **Package selection** - update packages by number, including comma-separated selections
 - **Confirmed uninstall** - removes one local or global installation at a time after two confirmations
@@ -80,6 +81,7 @@ project/
 │   ├── pt.json
 │   └── es.json
 ├── tests/
+│   ├── test_key_input.py
 │   ├── test_package_selection.py
 │   ├── test_progressive_loading.py
 │   └── test_uninstall.py
@@ -163,6 +165,8 @@ Quick language selection with instant input (single keypress, no Enter):
 - Press `2` for Português
 - Press `3` for Español
 - Press `Enter` alone selects English (default)
+
+Without a TTY (piped input), language defaults to English without prompting.
 
 Note:
 
@@ -337,7 +341,10 @@ Components:
 - **Current package**: Shows which package is being updated
 - **Next package**: Preview of what's coming next (muted)
 
-A spinner is shown while npm data is being collected, so the screen never looks frozen.
+A spinner is shown while npm data is being collected and on the current
+package line (`SCOPE: name`) while each update or uninstall command runs,
+so the screen never looks frozen. Without a TTY the spinner degrades to a
+single `SCOPE: name...` line per package instead of animating.
 
 ### Status Symbols
 
@@ -393,6 +400,7 @@ Current behavior:
 - Unicode fallbacks (ASCII) prevent crashes on Windows terminals with legacy code pages
 - Graceful fallback when terminal size detection fails
 - Update All and uninstall confirmations cancel on any key other than `y`
+- Failed key polling never falls back to a blocking read; outside a TTY input degrades safely (language defaults to English)
 - Uninstall requires the exact package name and blocks when inventory failed
 
 ---
@@ -420,7 +428,7 @@ All user-facing strings including table headers, menu options, progress bar labe
 
 ## Limitations
 
-- There is no test framework; run the focused checks with `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
+- There is no test framework; run the focused checks with `python tests/test_key_input.py`, `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
 - Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time to finish; the package list remains usable while sizes are measured
 - `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment

@@ -49,19 +49,37 @@ def getch():
     """
     Lê um único caractere do teclado sem precisar pressionar Enter.
     Funciona em Windows, Linux e Mac.
+
+    Returns:
+        caractere lido ou '' se nao houver terminal ou a leitura falhar
     """
     if IS_WINDOWS:
         import msvcrt
         return _read_msvcrt_key(msvcrt.getch)
-    else:
+
+    try:
         fd = sys.stdin.fileno()
+    except Exception:
+        return ''
+
+    try:
         old_settings = termios.tcgetattr(fd)
+    except Exception:
         try:
-            tty.setraw(fd)
-            ch = sys.stdin.read(1)
-        finally:
+            return sys.stdin.read(1) or ''
+        except Exception:
+            return ''
+
+    try:
+        tty.setraw(fd)
+        return sys.stdin.read(1) or ''
+    except Exception:
+        return ''
+    finally:
+        try:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return ch
+        except Exception:
+            pass
 
 
 def get_key():
@@ -85,11 +103,18 @@ def get_key():
             # ponytail: import local intencional; select não existe no Windows.
             try:
                 import select
+                try:
+                    target = sys.stdin.fileno()
+                except Exception:
+                    target = sys.stdin
                 while True:
-                    ready, _, _ = select.select([sys.stdin], [], [], 0.05)
+                    ready, _, _ = select.select([target], [], [], 0.05)
                     if not ready:
                         break
-                    nxt = sys.stdin.read(1)
+                    try:
+                        nxt = sys.stdin.read(1)
+                    except Exception:
+                        break
                     if not nxt:
                         break
                     if nxt.isalpha() or nxt == '~':
@@ -103,6 +128,9 @@ def get_key():
 def get_key_timeout(timeout):
     """
     Aguarda uma tecla por um tempo limitado sem bloquear a coleta em segundo plano.
+
+    Usa uma unica secao raw: seleciona antes de ler e restaura uma vez,
+    sem chamar get_key() de forma aninhada.
 
     Args:
         timeout: tempo maximo de espera em segundos
@@ -119,20 +147,57 @@ def get_key_timeout(timeout):
             time.sleep(min(0.02, max(0, deadline - time.monotonic())))
         return None
 
-    fd = None
-    old_settings = None
     try:
         fd = sys.stdin.fileno()
+    except Exception:
+        return None
+
+    try:
         old_settings = termios.tcgetattr(fd)
+    except Exception:
+        return None
+
+    try:
         tty.setraw(fd)
         import select
         ready, _, _ = select.select([fd], [], [], timeout)
-        return get_key() if ready else None
+        if not ready:
+            return None
+
+        try:
+            ch = sys.stdin.read(1)
+        except Exception:
+            return ''
+
+        if not ch:
+            return ''
+
+        if ch != '\x1b':
+            return ch
+
+        try:
+            while True:
+                more, _, _ = select.select([fd], [], [], 0.05)
+                if not more:
+                    break
+                try:
+                    nxt = sys.stdin.read(1)
+                except Exception:
+                    break
+                if not nxt:
+                    break
+                if nxt.isalpha() or nxt == '~':
+                    break
+        except Exception:
+            pass
+        return ''
     except Exception:
         return None
     finally:
-        if old_settings is not None:
+        try:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        except Exception:
+            pass
 
 
 # =====================================================
@@ -159,9 +224,24 @@ _FRAME_LINES = 0
 # I18N
 # =====================================================
 def load_language():
+    """
+    Carrega o idioma escolhido sem travar fora de um terminal.
+
+    Returns:
+        None; define LANG e STRINGS com fallback para en
+    """
     global LANG, STRINGS
 
     init_theme()
+    if not sys.stdin.isatty():
+        LANG = "en"
+        path = os.path.join(LOCALES_DIR, "en.json")
+        if not os.path.exists(path):
+            print(f"Missing locale file: {path}")
+            sys.exit(1)
+        with open(path, "r", encoding="utf-8") as f:
+            STRINGS = json.load(f)
+        return
     if USE_UNICODE:
         print("╭─ Language / Idioma / Idioma ─────────")
     else:
@@ -1575,7 +1655,11 @@ def uninstall_one(row, scope):
     print("  " + t("uninstalling").format(
         scope=t("local" if scope == "LOCAL" else "global"), name=name
     ))
-    succeeded = run_npm_cmd(_npm_uninstall_args(scope, name))
+    handle = start_spinner(f"{scope}: {name}")
+    try:
+        succeeded = run_npm_cmd(_npm_uninstall_args(scope, name))
+    finally:
+        stop_spinner(handle)
     key = "uninstall_done" if succeeded else "uninstall_failed"
     print_message("ok" if succeeded else "error", t(key).format(name=name))
     time.sleep(min(DELAY, 1))
@@ -1603,7 +1687,12 @@ def _run_tasks_frame(tasks):
             _build_progress_frame(tasks, states, i, term_width, term_height),
             term_width,
         )
-        if run_npm_cmd(_npm_args(scope, name)):
+        handle = start_spinner(f"{scope}: {name}")
+        try:
+            succeeded = run_npm_cmd(_npm_args(scope, name))
+        finally:
+            stop_spinner(handle)
+        if succeeded:
             states[i] = "ok"
         else:
             states[i] = "fail"
@@ -1645,7 +1734,12 @@ def _run_tasks_legacy(tasks):
         nxt = tasks[pos][1] if pos < total else None
         show_progress(pos, total, name, next_package=nxt, prefix=scope)
 
-        if run_npm_cmd(_npm_args(scope, name)):
+        handle = start_spinner(f"{scope}: {name}")
+        try:
+            succeeded = run_npm_cmd(_npm_args(scope, name))
+        finally:
+            stop_spinner(handle)
+        if succeeded:
             print_message("ok", f"{name}")
         else:
             failed.append(f"{scope}: {name}")
