@@ -19,6 +19,8 @@ There is **no build system**, **no test framework**, and **no linter/formatter c
 python main.py
 
 # Run focused checks
+python tests/test_demo_isolation.py
+python tests/test_key_input.py
 python tests/test_package_selection.py
 python tests/test_progressive_loading.py
 python tests/test_uninstall.py

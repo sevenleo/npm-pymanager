@@ -1044,6 +1044,20 @@ def calculate_column_widths(terminal_width, rows, headers):
 # NPM HELPERS
 # =====================================================
 def run(cmd):
+    """Executa comando de leitura npm com timeout comum.
+
+    No modo demo (--test) nunca inicia subprocesso real: retorna vazio.
+    E a tranca de seguranca final do modo de teste, independente do
+    caminho que chamou a coleta.
+
+    Args:
+        cmd: comando shell a executar
+
+    Returns:
+        stdout do comando ou string vazia em erro ou demo
+    """
+    if DEMO_MODE:
+        return ""
     try:
         result = subprocess.run(
             cmd,
@@ -1360,20 +1374,23 @@ DEMO_ROWSPEC = [
 ]
 
 
-def collect_rows_demo(uninstalled=None):
+def collect_rows_demo(uninstalled=None, updated=None):
     """
     Monta 10 linhas ficticias no mesmo formato de build_rows.
 
     4 pacotes ok, 5 com update e 1 (left-pad) que falha ao atualizar.
-    Nenhum comando npm ou acesso ao disco e executado.
+    Nenhum comando npm ou acesso ao disco e executado: atualizacoes e
+    desinstalacoes alteram apenas o estado simulado.
 
     Args:
         uninstalled: pares (nome, escopo) removidos apenas na simulacao
+        updated: pares (nome, escopo) marcados como atualizados na simulacao
 
     Returns:
         lista de dicionarios de pacotes ordenada por nome
     """
     uninstalled = uninstalled or set()
+    updated = updated or set()
     rows = []
     for name, gver, gnew, lver, lnew, gsize, lsize in sorted(
         DEMO_ROWSPEC, key=lambda spec: spec[0]
@@ -1384,6 +1401,12 @@ def collect_rows_demo(uninstalled=None):
             lver = lnew = lsize = ""
         if not gver and not lver:
             continue
+        if (name, "GLOBAL") in updated:
+            gver = gnew or gver
+            gnew = ""
+        if (name, "LOCAL") in updated:
+            lver = lnew or lver
+            lnew = ""
 
         if gsize and lsize:
             size_display = f"{gsize}(G) {lsize}(L)"
@@ -2078,6 +2101,7 @@ def main():
     results = queue.Queue()
     rows = collect_rows_demo() if DEMO_MODE else None
     demo_uninstalled = set()
+    demo_updated = set()
     active = None
     last_collection = None
     if DEMO_MODE:
@@ -2094,6 +2118,8 @@ def main():
 
     def start_fetch():
         nonlocal active, last_collection, generation
+        if DEMO_MODE:
+            return  # tranca estrutural: demo nunca inicia coleta real
         generation += 1
         active = _new_collection(generation, results)
         last_collection = active
@@ -2107,6 +2133,17 @@ def main():
         if active and active["size_state"] == "pending" and has_updates:
             active["cancel"].set()
             refresh_requested = True
+
+    def demo_apply_updates(selected_rows):
+        """Marca pacotes demo como atualizados, exceto o que simula falha."""
+        for row in selected_rows:
+            name = row["name"]
+            if name == DEMO_FAIL_NAME:
+                continue
+            if row.get("local_outdated"):
+                demo_updated.add((name, "LOCAL"))
+            if row.get("global_outdated"):
+                demo_updated.add((name, "GLOBAL"))
 
     if not DEMO_MODE:
         start_fetch()
@@ -2217,7 +2254,10 @@ def main():
             if confirm == "y":
                 stop_sizes_before_update(rows or [])
                 if update_all(rows):
-                    if active:
+                    if DEMO_MODE:
+                        demo_apply_updates(rows or [])
+                        rows = collect_rows_demo(demo_uninstalled, demo_updated)
+                    elif active:
                         refresh_requested = True
                         active["cancel"].set()
                     else:
@@ -2295,7 +2335,7 @@ def main():
             if DEMO_MODE:
                 if succeeded:
                     demo_uninstalled.add((row["name"], scope))
-                    rows = collect_rows_demo(demo_uninstalled)
+                    rows = collect_rows_demo(demo_uninstalled, demo_updated)
             elif active:
                 refresh_requested = True
                 active["cancel"].set()
@@ -2334,7 +2374,10 @@ def main():
                 else update_all(selected_rows)
             )
             if updated:
-                if active:
+                if DEMO_MODE:
+                    demo_apply_updates(selected_rows)
+                    rows = collect_rows_demo(demo_uninstalled, demo_updated)
+                elif active:
                     refresh_requested = True
                     active["cancel"].set()
                 else:

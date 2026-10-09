@@ -7,6 +7,12 @@ Base language is English; other languages live only in `locales/`.
 
 ### Fixed
 
+- Keep demo mode isolated after simulated updates
+- `--test` never leaks into real npm collection after `a`/`o` updates:
+  simulated updates mark the fictitious rows as updated (`left-pad` keeps
+  failing), `start_fetch()` refuses to run in demo mode, and `run()`
+  never starts a subprocess in demo mode.
+
 - Fix nested Linux raw input
 - get_key_timeout() uses a single raw section without nested get_key() calls.
 - getch() degrades safely without a TTY; language selection defaults to English.

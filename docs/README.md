@@ -81,6 +81,7 @@ project/
 │   ├── pt.json
 │   └── es.json
 ├── tests/
+│   ├── test_demo_isolation.py
 │   ├── test_key_input.py
 │   ├── test_package_selection.py
 │   ├── test_progressive_loading.py
@@ -155,6 +156,8 @@ python main.py --test
 
 - Shows 10 fictitious packages: 4 up to date, 5 needing update, 1 (`left-pad`) that fails with `[x]`
 - Package actions are simulated (~0.4s each) — no real npm commands run, no files change
+- Simulated updates refresh the table in place: updated packages turn `[ok]`, `left-pad` stays `[x]`
+- Demo mode stays isolated even after updates and refresh: no real `npm list/outdated` collection ever starts
 - Combines with `--no-color`; language selection still appears first
 
 ### Language Selection
@@ -428,7 +431,7 @@ All user-facing strings including table headers, menu options, progress bar labe
 
 ## Limitations
 
-- There is no test framework; run the focused checks with `python tests/test_key_input.py`, `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
+- There is no test framework; run the focused checks with `python tests/test_demo_isolation.py`, `python tests/test_key_input.py`, `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
 - Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time to finish; the package list remains usable while sizes are measured
 - `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment
