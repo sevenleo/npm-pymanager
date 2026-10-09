@@ -7,6 +7,10 @@ Base language is English; other languages live only in `locales/`.
 
 ### Fixed
 
+-c Fix Linux key input
+- Linux menu keys are read immediately without waiting for Enter.
+- Failed key polling no longer falls back to an unbounded read.
+
 -c remove redundant status legend
 - Removed the redundant update legend from the menu; package status remains visible in the table.
 

@@ -119,12 +119,20 @@ def get_key_timeout(timeout):
             time.sleep(min(0.02, max(0, deadline - time.monotonic())))
         return None
 
+    fd = None
+    old_settings = None
     try:
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        tty.setraw(fd)
         import select
-        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        ready, _, _ = select.select([fd], [], [], timeout)
         return get_key() if ready else None
     except Exception:
-        return get_key()
+        return None
+    finally:
+        if old_settings is not None:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 # =====================================================
