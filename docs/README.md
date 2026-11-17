@@ -27,6 +27,7 @@ It shows installed versions, available updates, and package size, then lets you 
 - **Progressive loading** - installed packages appear before update checks and size measurements finish
 - **Cached data loop** - fetches once and reuses; refetches on demand, after updates, or when stale (TTL)
 - **Timeout-safe npm calls** - every command has a timeout and fails soft with a warning
+- **Deterministic CLI mode** - `--list`, `--update-all`, `--update`, and `--uninstall` run one bounded command and exit with a stable code, never opening the TUI
 - **Cross-platform support** for Windows, Linux, and macOS
 
 ## Performance Notes
@@ -81,6 +82,7 @@ project/
 │   ├── pt.json
 │   └── es.json
 ├── tests/
+│   ├── test_cli.py
 │   ├── test_demo_isolation.py
 │   ├── test_key_input.py
 │   ├── test_package_selection.py
@@ -145,6 +147,65 @@ Run the script from the repository root:
 ```bash
 python main.py
 ```
+
+### Command-line mode
+
+Any explicit command runs once and exits without opening the interactive menu:
+
+```bash
+python main.py --help
+python main.py --version
+python main.py --list
+python main.py --update-all [--scope local|global] [--yes]
+python main.py --update [<exact-package-name>] [--scope local|global]
+python main.py --uninstall <exact-package-name> [--scope local|global]
+```
+
+- `--list` is read-only: it collects installed and outdated packages once and prints one aligned table (`package`, `local`, `global`, `update`, `scope`, `status`) directly, with no title header. It never calls `npm update` or `npm uninstall`.
+- `--update-all` updates every outdated package, optionally limited by `--scope`. It asks for a `(y/N)` confirmation unless `--yes` is present. `--yes`, `--force`, and `--auto` are accepted, but only `--yes` skips this one prompt.
+- `--update` without a package name prints a numbered table of outdated packages instead of failing, then updates only what you pick:
+  - one row per package and scope, ordered by name with `local` before `global`, so each number maps to exactly one `npm update`; a package outdated in both scopes appears twice
+  - accepted answers: a number (`2`), a comma-separated list (`1,3`), `a`/`all` for every entry, or `q`/`quit` to cancel
+  - on a terminal, `a` and `q` act on the first keypress without waiting for Enter; numbers and `all`/`quit` still end with Enter because more digits or commas may follow
+  - an empty line, EOF, or a read error cancels with exit code `5` without running npm
+  - an invalid answer (`0`, out of range, `x`, `1,a`) exits with code `2` without running npm and without asking again
+  - the table goes to stdout and the `>` prompt to stderr; `--yes` is ignored here because the selection itself is the confirmation
+- Both CLI tables start with the column headers and print no title header or package count line. The arrow is `→` on a terminal and `>` otherwise. No ANSI escapes are used, and no package sizes are ever measured.
+- `--update <package>` and `--uninstall` require the exact npm package name. Partial names, substrings, and table row numbers are rejected. When a package is installed in both scopes and `--scope` is omitted, the command stops instead of guessing.
+- `--uninstall` always asks for confirmation, even with `--yes`, `--force`, or `--auto`. Only `y` or `yes` proceeds; empty input, `n`, `no`, and EOF cancel the operation without running npm.
+- Confirmation prompts are written to stderr, so stdout stays pipe-safe. Normal results go to stdout; errors and warnings go to stderr.
+- While each `npm update` runs, the same transient spinner used by the interactive mode appears on stdout. When stdout is not a terminal, no spinner is drawn and the output stays plain.
+- CLI messages are always English; the interactive language selection is not used, and no prompt is shown.
+- Every command supports `--test` for the same fictitious data used by the TUI.
+
+Selection layout on a terminal:
+
+```text
+  #  package     scope   current  →  latest
+  _  __________  ______  _______     ______
+  1  react       local   18.2.0   →  18.3.1
+  2  typescript  global  5.4.5    →  5.6.2
+
+  Select packages to update:
+
+    1,2,3   single or multiple (comma-separated)
+    [a]ll   update all
+    [q]uit  quit
+  >
+```
+
+Exit codes are stable for scripts:
+
+| Code | Meaning |
+| ---: | --- |
+| `0` | Command completed successfully |
+| `1` | npm operation failed or npm is missing |
+| `2` | Invalid command-line usage |
+| `3` | Package not found |
+| `4` | Scope is ambiguous or invalid |
+| `5` | Operation cancelled |
+| `6` | Collection or dependency check failed |
+| `124` | Operation timed out |
 
 ### Demo mode (fictitious data)
 
@@ -423,15 +484,21 @@ Adding a new language requires:
 1. Creating a new locale JSON file
 2. Adding it to the language selection mapping in `main.py`
 
-### Locale Keys (75 per file)
+### Locale Keys (115 per file)
 
-All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels, and confirmation prompts. Keep the three files in sync — every `t()` key must exist in all of them.
+All user-facing strings including table headers, menu options, progress bar labels, error messages, demo/viewport labels, confirmation prompts, and CLI messages. Keep the three files in sync — every `t()` key must exist in all of them.
+
+The CLI always loads `locales/en.json`; its translated keys exist so a future language option can reuse the same messages without touching the command code.
 
 ---
 
 ## Limitations
 
-- There is no test framework; run the focused checks with `python tests/test_demo_isolation.py`, `python tests/test_key_input.py`, `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
+- There is no test framework; run the focused checks with `python tests/test_cli.py`, `python tests/test_demo_isolation.py`, `python tests/test_key_input.py`, `python tests/test_package_selection.py`, `python tests/test_progressive_loading.py`, and `python tests/test_uninstall.py`
+- The CLI is English-only and does not show package sizes; use the interactive table when localized output or size data is needed
+- CLI `--update <package>` and `--uninstall` match exact npm names only; there is no fuzzy or substring matching
+- The `--update` selection shows `current -> latest`; `npm update` still respects the semver range, so a major version may remain available after the update
+- The `--update` selection never asks again: an invalid answer exits with code `2`, which keeps scripts and pipes predictable
 - Size calculation still depends on filesystem traversal, so very large package trees can take noticeable time to finish; the package list remains usable while sizes are measured
 - `npm outdated` needs network access to check the registry; without it the outdated columns stay empty
 - The tool assumes `npm` commands are available in the current shell environment

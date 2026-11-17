@@ -5,6 +5,54 @@ Base language is English; other languages live only in `locales/`.
 
 ## [Unreleased]
 
+### Added
+
+-c Respond to a and q immediately
+- On a terminal, the `--update` selection reacts to `a` and `q` on the first
+  keypress; numbers still need Enter because more digits or commas may follow.
+- Ctrl+C cancels the selection, and special keys such as arrows are ignored.
+- Piped input keeps line-based reading, so scripts and tests behave the same.
+
+-c Restyle CLI package tables
+- `--list` and the `--update` selection now share one aligned table:
+  `#`, `package`, `scope`, `current`, `latest`, with a column rule and a
+  `→` arrow. There is no title header and no package count line; the table
+  starts directly with the column headers.
+- The arrow is `→` on a terminal and `>` otherwise. No ANSI escapes, no size
+  measurement, no extra npm calls.
+- A blank line separates the collection notice from the table output.
+- The selection prompt is now a short `>` marker on stderr, with the accepted
+  answers listed under the table.
+
+-c Add CLI update spinner
+- `--update`, the numbered update selection, and `--update-all` show the same
+  transient spinner as the interactive mode while each npm update runs. When
+  stdout is not a terminal the spinner is skipped, so piped output stays plain.
+
+-c Add interactive update selection
+- `--update` without a package name now prints a numbered list of outdated
+  packages instead of failing. Answer with one number, a comma-separated
+  list, `a`/`all` for every entry, or `q`/`quit` to cancel.
+- The list has one line per package and scope, ordered by name with `LOCAL`
+  before `GLOBAL`, so each number runs exactly one `npm update`.
+- Empty input or EOF cancels with exit code `5`; an invalid answer exits
+  with code `2`; neither case runs npm. `--yes` is ignored in this mode.
+- `--update <package>` keeps its exact-name behavior unchanged.
+- New CLI selection keys in all three locale files.
+
+-c Add deterministic CLI mode
+- `--list`, `--update-all`, `--update PACKAGE`, and `--uninstall PACKAGE`
+  run one bounded command and exit without opening the interactive menu.
+- `--help` and `--version` work without collection or a language prompt.
+- Exact package-name resolution: partial names, substrings, and table row
+  numbers are rejected, and `--scope` is required when a package is installed
+  in both local and global scopes.
+- `--uninstall` always asks for confirmation, even with `--yes`, `--force`,
+  or `--auto`; `--yes` skips only the `--update-all` prompt.
+- Stable exit codes (0, 1, 2, 3, 4, 5, 6, 124) and pipe-safe output: results
+  on stdout, diagnostics and prompts on stderr, no ANSI in CLI output.
+- 32 new CLI message keys in all three locale files.
+
 ### Fixed
 
 - Keep demo mode isolated after simulated updates

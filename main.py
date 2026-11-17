@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+import argparse
 import subprocess
 import json
 import os
 import queue
 import re
+import shutil
 import sys
 import threading
 import time
@@ -203,6 +205,7 @@ def get_key_timeout(timeout):
 # =====================================================
 # CONFIG
 # =====================================================
+VERSION = "1.1.0"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCALES_DIR = os.path.join(SCRIPT_DIR, "locales")
 LANG = "en"
@@ -223,6 +226,28 @@ _FRAME_LINES = 0
 # =====================================================
 # I18N
 # =====================================================
+def _load_locale(lang):
+    """
+    Carrega um arquivo de locale sem qualquer interacao com o usuario.
+
+    Args:
+        lang: codigo do idioma (en, es, pt)
+
+    Returns:
+        None; define LANG e STRINGS
+    """
+    global LANG, STRINGS
+
+    path = os.path.join(LOCALES_DIR, f"{lang}.json")
+    if not os.path.exists(path):
+        print(f"Missing locale file: {path}")
+        sys.exit(1)
+
+    with open(path, "r", encoding="utf-8") as f:
+        STRINGS = json.load(f)
+    LANG = lang
+
+
 def load_language():
     """
     Carrega o idioma escolhido sem travar fora de um terminal.
@@ -230,17 +255,9 @@ def load_language():
     Returns:
         None; define LANG e STRINGS com fallback para en
     """
-    global LANG, STRINGS
-
     init_theme()
     if not sys.stdin.isatty():
-        LANG = "en"
-        path = os.path.join(LOCALES_DIR, "en.json")
-        if not os.path.exists(path):
-            print(f"Missing locale file: {path}")
-            sys.exit(1)
-        with open(path, "r", encoding="utf-8") as f:
-            STRINGS = json.load(f)
+        _load_locale("en")
         return
     if USE_UNICODE:
         print("╭─ Language / Idioma / Idioma ─────────")
@@ -264,16 +281,7 @@ def load_language():
 
     # Mapeamento direto com fallback para English
     mapping = {"1": "en", "2": "pt", "3": "es", "": "en"}
-    LANG = mapping.get(ch, "en")  # fallback: qualquer tecla inválida → en
-
-    path = os.path.join(LOCALES_DIR, f"{LANG}.json")
-
-    if not os.path.exists(path):
-        print(f"Missing locale file: {path}")
-        sys.exit(1)
-
-    with open(path, "r", encoding="utf-8") as f:
-        STRINGS = json.load(f)
+    _load_locale(mapping.get(ch, "en"))  # fallback: tecla inválida → en
 
 
 def t(key):
@@ -2027,6 +2035,890 @@ def _apply_collection_events(collection, results):
 
 
 # =====================================================
+# CLI
+# =====================================================
+EXIT_OK = 0
+EXIT_NPM_FAILED = 1
+EXIT_USAGE = 2
+EXIT_NOT_FOUND = 3
+EXIT_SCOPE = 4
+EXIT_CANCELLED = 5
+EXIT_COLLECTION = 6
+EXIT_TIMEOUT = 124
+
+
+def build_cli_parser():
+    """Monta o parser de argumentos do modo CLI.
+
+    Returns:
+        argparse.ArgumentParser com as acoes e opcoes suportadas
+    """
+    parser = argparse.ArgumentParser(
+        prog="main.py",
+        description="Inspect, update, and uninstall npm packages without the TUI.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Exit codes:\n"
+            "  0  success       1  npm failure      2  usage error\n"
+            "  3  not found     4  scope ambiguous  5  cancelled\n"
+            "  6  collection    124 timeout\n"
+            "\n"
+            "--update without a package name lists outdated packages and\n"
+            "updates only the numbers you pick.\n"
+            "\n"
+            "--yes skips the update-all prompt. It never skips the uninstall\n"
+            "confirmation and is ignored by the update selection."
+        ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"npm-pymanager {VERSION}"
+    )
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
+        "--list", action="store_true",
+        help="print installed and outdated packages without changing anything",
+    )
+    actions.add_argument(
+        "--update-all", action="store_true",
+        help="update every outdated package, optionally limited by --scope",
+    )
+    actions.add_argument(
+        "--update", metavar="PACKAGE", nargs="?", const="",
+        help=(
+            "update one exact package name, or pick from a numbered list "
+            "of outdated packages when the name is omitted"
+        ),
+    )
+    actions.add_argument(
+        "--uninstall", metavar="PACKAGE", help="uninstall one exact package name"
+    )
+    parser.add_argument(
+        "--scope", choices=("local", "global"),
+        help="restrict the command to one installation scope",
+    )
+    parser.add_argument(
+        "--yes", "--force", "--auto", dest="assume_yes", action="store_true",
+        help="skip the update-all prompt (uninstall always confirms)",
+    )
+    parser.add_argument(
+        "--test", action="store_true", help="demo mode with fictitious data"
+    )
+    parser.add_argument(
+        "--no-color", action="store_true", help="disable ANSI colors"
+    )
+    return parser
+
+
+def parse_cli_args(argv):
+    """Interpreta a linha de comando e normaliza a requisicao.
+
+    Args:
+        argv: argumentos sem o nome do programa
+
+    Returns:
+        dict com action, package_name, scope e assume_yes, ou None sem acao
+    """
+    args = build_cli_parser().parse_args(argv)
+    action = None
+    package_name = None
+    if args.list:
+        action = "list"
+    elif args.update_all:
+        action = "update_all"
+    elif args.update is not None:
+        if args.update:
+            action = "update_one"
+            package_name = args.update
+        else:
+            action = "update_select"
+    elif args.uninstall is not None:
+        action = "uninstall"
+        package_name = args.uninstall
+
+    if action is None and args.scope is None and not args.assume_yes:
+        return None
+
+    return {
+        "action": action,
+        "package_name": package_name,
+        "scope": args.scope.upper() if args.scope else None,
+        "assume_yes": args.assume_yes,
+    }
+
+
+def validate_cli_request(request):
+    """Valida a combinacao de acao e argumentos antes de coletar dados.
+
+    Args:
+        request: dict retornado por parse_cli_args
+
+    Returns:
+        None quando valido, ou mensagem de erro para stderr
+    """
+    action = request["action"]
+    name = request["package_name"]
+    scope = request["scope"]
+
+    if action is None:
+        return t("cli_usage_action")
+    if action == "list":
+        if scope is not None:
+            return t("cli_usage_scope_list")
+        return None
+    if action == "update_all":
+        return None
+    if action == "update_select":
+        return None
+    if not name:
+        option = "update" if action == "update_one" else "uninstall"
+        return t("cli_usage_missing_name").format(option=option)
+    if name != name.strip():
+        return t("cli_usage_spaces")
+    if name.isdigit():
+        return t("cli_usage_row_number").format(name=name)
+    return None
+
+
+def npm_available():
+    """Indica se o executavel npm existe no PATH."""
+    return shutil.which("npm") is not None
+
+
+def cli_out(text):
+    """Escreve uma linha de resultado em stdout."""
+    print(text, flush=True)
+
+
+def cli_err(text):
+    """Escreve uma linha de diagnostico em stderr."""
+    print(text, file=sys.stderr, flush=True)
+
+
+def collect_cli_snapshot(action, scope=None):
+    """Coleta apenas os dados exigidos por um comando CLI.
+
+    Args:
+        action: list, update_all, update_one, update_select ou uninstall
+        scope: LOCAL, GLOBAL ou None
+
+    Returns:
+        dict com rows, mapas outdated, checks, timed_out e failed
+    """
+    if DEMO_MODE:
+        rows = collect_rows_demo()
+        outdated_local = {
+            row["name"]: {"current": row["lver"], "latest": row["lnew"]}
+            for row in rows if row["local_outdated"]
+        }
+        outdated_global = {
+            row["name"]: {"current": row["gver"], "latest": row["gnew"]}
+            for row in rows if row["global_outdated"]
+        }
+        return {
+            "rows": rows,
+            "outdated_local": (
+                outdated_local if scope != "GLOBAL" else {}
+            ),
+            "outdated_global": (
+                outdated_global if scope != "LOCAL" else {}
+            ),
+            "checks": {},
+            "timed_out": False,
+            "failed": False,
+        }
+
+    need_list = action in ("list", "update_one", "uninstall")
+    need_outdated = action in (
+        "list", "update_all", "update_one", "update_select"
+    )
+    scopes = [scope] if scope else ["LOCAL", "GLOBAL"]
+
+    queries = {}
+    if need_list:
+        for item in scopes:
+            if item == "LOCAL":
+                queries["local"] = lambda: _npm_list_result(False)
+            else:
+                queries["global"] = lambda: _npm_list_result(True)
+    if need_outdated:
+        for item in scopes:
+            if item == "LOCAL":
+                queries["outdated_local"] = (
+                    lambda: _npm_outdated_result(False)
+                )
+            else:
+                queries["outdated_global"] = (
+                    lambda: _npm_outdated_result(True)
+                )
+
+    results = queue.Queue()
+    for name, query in queries.items():
+        _start_daemon_task(results, 0, name, query)
+    collected = {}
+    for _ in queries:
+        _, name, result = results.get()
+        collected[name] = result
+
+    local = {}
+    global_ = {}
+    outdated_local = {}
+    outdated_global = {}
+    checks = {}
+    timed_out = False
+    failed = False
+    for name, result in collected.items():
+        if not isinstance(result, tuple) or len(result) != 3:
+            data, ok, was_timeout = {}, False, False
+        else:
+            data, ok, was_timeout = result
+        checks[name] = "ready" if ok else "failed"
+        timed_out = timed_out or was_timeout
+        failed = failed or not ok
+        if name == "local":
+            local = data or {}
+        elif name == "global":
+            global_ = data or {}
+        elif name == "outdated_local":
+            outdated_local = data or {}
+        elif name == "outdated_global":
+            outdated_global = data or {}
+
+    rows = []
+    if need_list:
+        rows = build_rows(
+            local,
+            global_,
+            outdated_local,
+            outdated_global,
+            size_map={},
+            check_states={
+                "outdated_local": checks.get("outdated_local", "ready"),
+                "outdated_global": checks.get("outdated_global", "ready"),
+            },
+            inventory_failed=(
+                checks.get("local") == "failed"
+                or checks.get("global") == "failed"
+            ),
+        )
+
+    return {
+        "rows": rows,
+        "outdated_local": outdated_local,
+        "outdated_global": outdated_global,
+        "checks": checks,
+        "timed_out": timed_out,
+        "failed": failed,
+    }
+
+
+def _cli_target(row, scope):
+    """Monta o alvo resolvido de um pacote para o CLI.
+
+    Args:
+        row: linha de build_rows ou collect_rows_demo
+        scope: LOCAL ou GLOBAL
+
+    Returns:
+        dict com nome, escopo, versoes e estado de atualizacao
+    """
+    if scope == "LOCAL":
+        installed = row.get("lver", "")
+        available = row.get("lnew", "")
+        outdated = bool(row.get("local_outdated"))
+    else:
+        installed = row.get("gver", "")
+        available = row.get("gnew", "")
+        outdated = bool(row.get("global_outdated"))
+    return {
+        "name": row["name"],
+        "scope": scope,
+        "installed": installed,
+        "available": available,
+        "outdated": outdated,
+    }
+
+
+def resolve_cli_target(name, requested_scope, rows):
+    """Resolve um pacote pelo nome exato e pelo escopo pedido.
+
+    Args:
+        name: nome exato do pacote
+        requested_scope: LOCAL, GLOBAL ou None
+        rows: linhas coletadas
+
+    Returns:
+        tupla (alvo, erro) onde erro e None, scope ou not_found
+    """
+    for row in rows:
+        if row["name"] != name:
+            continue
+        if requested_scope == "LOCAL":
+            if not row.get("lver"):
+                return None, "not_found"
+            return _cli_target(row, "LOCAL"), None
+        if requested_scope == "GLOBAL":
+            if not row.get("gver"):
+                return None, "not_found"
+            return _cli_target(row, "GLOBAL"), None
+
+        scopes = []
+        if row.get("lver"):
+            scopes.append("LOCAL")
+        if row.get("gver"):
+            scopes.append("GLOBAL")
+        if len(scopes) == 1:
+            return _cli_target(row, scopes[0]), None
+        if len(scopes) == 2:
+            return None, "scope"
+        return None, "not_found"
+    return None, "not_found"
+
+
+def confirm_cli(prompt):
+    """Le uma confirmacao explicita de stdin.
+
+    O prompt vai para stderr para nao poluir stdout redirecionado.
+
+    Args:
+        prompt: texto exibido antes da leitura
+
+    Returns:
+        True somente quando a resposta e y ou yes
+    """
+    sys.stderr.write(prompt)
+    sys.stderr.flush()
+    try:
+        answer = sys.stdin.readline()
+    except Exception:
+        return False
+    if not answer:
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
+def run_cli_tasks(tasks):
+    """Executa npm update para cada tarefa e registra o resultado.
+
+    Args:
+        tasks: lista de tuplas (scope, nome)
+
+    Returns:
+        tupla (failed, timed_out) com as tarefas que falharam
+    """
+    failed = []
+    timed_out = False
+    for scope, name in tasks:
+        args = _npm_args(scope, name)
+        cli_out(t("cli_updating").format(scope=scope, name=name))
+        handle = start_spinner(f"{scope}: {name}") if sys.stdout.isatty() else None
+        try:
+            succeeded = run_npm_cmd(args)
+        finally:
+            stop_spinner(handle)
+        if succeeded:
+            cli_out(t("cli_update_done").format(name=name, scope=scope))
+            continue
+        if _consume_timeout(" ".join(args)):
+            timed_out = True
+        failed.append((scope, name))
+        cli_err(t("cli_update_failed").format(name=name, scope=scope))
+    return failed, timed_out
+
+
+def _cli_outdated_entries(snapshot):
+    """Monta a lista numerada de pacotes com atualizacao disponivel.
+
+    Cada item corresponde a um unico npm update, por isso um pacote
+    desatualizado nos dois escopos aparece duas vezes.
+
+    Args:
+        snapshot: dict retornado por collect_cli_snapshot
+
+    Returns:
+        lista de dicts com number, name, scope, current e latest
+    """
+    names = sorted(
+        set(snapshot["outdated_local"]) | set(snapshot["outdated_global"])
+    )
+    entries = []
+    for name in names:
+        for scope, key in (
+            ("LOCAL", "outdated_local"),
+            ("GLOBAL", "outdated_global"),
+        ):
+            info = snapshot[key].get(name)
+            if info is None:
+                continue
+            entries.append({
+                "number": len(entries) + 1,
+                "name": name,
+                "scope": scope,
+                "current": info.get("current") or "-",
+                "latest": info.get("latest") or "-",
+            })
+    return entries
+
+
+def read_cli_line(prompt):
+    """Le uma linha de stdin depois de exibir o prompt em stderr.
+
+    Args:
+        prompt: texto exibido antes da leitura
+
+    Returns:
+        linha digitada sem a quebra final, ou None em EOF ou erro
+    """
+    sys.stderr.write(prompt)
+    sys.stderr.flush()
+    try:
+        answer = sys.stdin.readline()
+    except Exception:
+        return None
+    if not answer:
+        return None
+    return answer.rstrip("\r\n")
+
+
+def read_cli_choice(prompt):
+    """Le a escolha da selecao, com resposta imediata para a e q.
+
+    Em terminal, letras agem na hora e numeros continuam a leitura da
+    linha. Fora de um terminal, usa readline para manter pipes e testes.
+
+    Args:
+        prompt: texto exibido em stderr
+
+    Returns:
+        escolha digitada, "" para Enter, ou None em EOF, erro ou Ctrl+C
+    """
+    if not sys.stdin.isatty():
+        return read_cli_line(prompt)
+
+    sys.stderr.write(prompt)
+    sys.stderr.flush()
+
+    while True:
+        ch = get_key()
+        if ch == "":
+            continue
+        if ch == "\x03":
+            sys.stderr.write("\n")
+            return None
+        if ch in ("\n", "\r"):
+            sys.stderr.write("\n")
+            return ""
+        if ch.lower() in ("a", "q"):
+            sys.stderr.write(ch + "\n")
+            return ch.lower()
+        sys.stderr.write(ch)
+        if ch.isdigit() or ch == ",":
+            rest = read_cli_line("")
+            if rest is None:
+                return None
+            return ch + rest
+        sys.stderr.write("\n")
+        return ch
+
+
+def parse_cli_selection(answer, total):
+    """Interpreta a escolha feita na lista numerada.
+
+    Args:
+        answer: linha digitada ou None quando a leitura falhou
+        total: quantidade de itens numerados
+
+    Returns:
+        tupla (indices, error); indices None cancela e error None e valido
+    """
+    text = (answer or "").strip().lower()
+    if not text or text in ("q", "quit"):
+        return None, None
+    if text in ("a", "all"):
+        return list(range(total)), None
+
+    indices = []
+    for part in text.split(","):
+        part = part.strip()
+        if not part.isdigit():
+            return None, "invalid"
+        number = int(part)
+        if number < 1 or number > total:
+            return None, "invalid"
+        if number - 1 not in indices:
+            indices.append(number - 1)
+    if not indices:
+        return None, "invalid"
+    indices.sort()
+    return indices, None
+
+
+def _run_cli_update_tasks(tasks):
+    """Executa as tarefas de update e resume o resultado.
+
+    Args:
+        tasks: lista de tuplas (scope, nome)
+
+    Returns:
+        codigo de saida estavel
+    """
+    failed, timed_out = run_cli_tasks(tasks)
+    cli_out(t("cli_update_summary").format(
+        done=len(tasks) - len(failed), failed=len(failed)
+    ))
+    if not failed:
+        return EXIT_OK
+    if timed_out:
+        cli_err(t("cli_timeout"))
+        return EXIT_TIMEOUT
+    return EXIT_NPM_FAILED
+
+
+def _cli_arrow():
+    """Escolhe a seta conforme o suporte do terminal."""
+    return "→" if _detect_unicode() else ">"
+
+
+def _cli_widths(rows):
+    """Calcula a largura de cada coluna a partir das linhas."""
+    widths = []
+    for row in rows:
+        for index, cell in enumerate(row):
+            size = len(str(cell))
+            if index < len(widths):
+                widths[index] = max(widths[index], size)
+            else:
+                widths.append(size)
+    return widths
+
+
+def _cli_format_row(cells, widths):
+    """Alinha uma linha e remove os espacos a direita."""
+    parts = [
+        str(cell).ljust(widths[index]) for index, cell in enumerate(cells)
+    ]
+    return ("  " + "  ".join(parts)).rstrip()
+
+
+def _cli_table(headers, rows, blank_columns=()):
+    """Monta cabecalho, regua e linhas alinhadas.
+
+    Args:
+        headers: tupla de titulos das colunas
+        rows: lista de tuplas de celulas
+        blank_columns: indices sem regua na linha separadora
+
+    Returns:
+        lista de linhas prontas para impressao
+    """
+    rows = [headers] + list(rows)
+    widths = _cli_widths(rows)
+    rule = "  " + "  ".join(
+        " " * width if index in blank_columns else "_" * width
+        for index, width in enumerate(widths)
+    )
+    return [_cli_format_row(headers, widths), rule.rstrip()] + [
+        _cli_format_row(row, widths) for row in rows[1:]
+    ]
+
+
+def _cli_align(rows):
+    """Alinha colunas sem cabecalho e sem regua."""
+    widths = _cli_widths(rows)
+    return [_cli_format_row(row, widths) for row in rows]
+
+
+def _cli_emit(lines):
+    """Escreve cada linha em stdout."""
+    for line in lines:
+        cli_out(line)
+
+
+def render_cli_list(snapshot):
+    """Imprime a tabela estavel de pacotes do comando --list.
+
+    Args:
+        snapshot: dict retornado por collect_cli_snapshot
+    """
+    rows = snapshot["rows"]
+    if not rows:
+        cli_out(t("cli_no_packages"))
+        return
+
+    headers = (
+        t("package").lower(),
+        t("local").lower(),
+        t("global").lower(),
+        t("cli_update_column").lower(),
+        t("cli_scope_column").lower(),
+        t("status").lower(),
+    )
+    table = []
+    for row in rows:
+        scopes = []
+        if row.get("lver"):
+            scopes.append(t("local").lower())
+        if row.get("gver"):
+            scopes.append(t("global").lower())
+        updates = []
+        if row.get("local_outdated"):
+            updates.append(f"{t('local').lower()} {row.get('lnew', '')}")
+        if row.get("global_outdated"):
+            updates.append(f"{t('global').lower()} {row.get('gnew', '')}")
+        table.append((
+            row["name"],
+            row.get("lver") or "-",
+            row.get("gver") or "-",
+            ", ".join(updates) or "-",
+            ",".join(scopes) or "-",
+            t("status_" + status_label_key(row)),
+        ))
+
+    _cli_emit(_cli_table(headers, table))
+
+
+def render_cli_selection(entries):
+    """Imprime a tabela numerada de pacotes desatualizados.
+
+    Args:
+        entries: lista retornada por _cli_outdated_entries
+    """
+    arrow = _cli_arrow()
+    headers = (
+        t("cli_col_number"),
+        t("package").lower(),
+        t("cli_scope_column").lower(),
+        t("cli_col_current"),
+        arrow,
+        t("cli_col_latest"),
+    )
+    rows = [
+        (
+            entry["number"],
+            entry["name"],
+            t("local" if entry["scope"] == "LOCAL" else "global").lower(),
+            entry["current"],
+            arrow,
+            entry["latest"],
+        )
+        for entry in entries
+    ]
+    _cli_emit(_cli_table(headers, rows, blank_columns=(4,)))
+    cli_out("")
+    cli_out("  " + t("cli_selection_prompt"))
+    cli_out("")
+    _cli_emit([
+        "  " + line
+        for line in _cli_align((
+            ("1,2,3", t("cli_help_numbers")),
+            ("[a]ll", t("cli_help_all")),
+            ("[q]uit", t("cli_help_quit")),
+        ))
+    ])
+
+
+def render_cli_target(target, action):
+    """Imprime o alvo resolvido antes de uma mutacao.
+
+    Args:
+        target: dict retornado por resolve_cli_target
+        action: update ou uninstall
+    """
+    cli_out(t("cli_package_line").format(name=target["name"]))
+    cli_out(t("cli_scope_line").format(scope=target["scope"]))
+    cli_out(t("cli_action_line").format(action=action))
+    cli_out(t("cli_installed_line").format(version=target["installed"]))
+    if target["available"]:
+        cli_out(t("cli_available_line").format(version=target["available"]))
+
+
+def _cli_report_resolution_error(error, name):
+    """Escreve o erro de resolucao e devolve o exit code correspondente."""
+    if error == "scope":
+        cli_err(t("cli_scope_required").format(name=name))
+        return EXIT_SCOPE
+    cli_err(t("cli_not_found").format(name=name))
+    cli_err(t("cli_not_found_hint"))
+    return EXIT_NOT_FOUND
+
+
+def run_cli_update_one(snapshot, name, scope):
+    """Atualiza um unico pacote pelo nome exato.
+
+    Args:
+        snapshot: dados coletados
+        name: nome exato do pacote
+        scope: LOCAL, GLOBAL ou None
+
+    Returns:
+        codigo de saida estavel
+    """
+    target, error = resolve_cli_target(name, scope, snapshot["rows"])
+    if error is not None:
+        return _cli_report_resolution_error(error, name)
+
+    render_cli_target(target, "update")
+    if not target["outdated"]:
+        cli_out(t("cli_already_latest").format(
+            name=target["name"], scope=target["scope"]
+        ))
+        return EXIT_OK
+
+    failed, timed_out = run_cli_tasks([(target["scope"], target["name"])])
+    if not failed:
+        return EXIT_OK
+    if timed_out:
+        cli_err(t("cli_timeout"))
+        return EXIT_TIMEOUT
+    return EXIT_NPM_FAILED
+
+
+def run_cli_update_all(snapshot, assume_yes):
+    """Atualiza todos os pacotes desatualizados coletados.
+
+    Args:
+        snapshot: dados coletados
+        assume_yes: True pula a confirmacao do update-all
+
+    Returns:
+        codigo de saida estavel
+    """
+    tasks = [("LOCAL", name) for name in sorted(snapshot["outdated_local"])]
+    tasks += [("GLOBAL", name) for name in sorted(snapshot["outdated_global"])]
+
+    if not tasks:
+        cli_out(t("nothing_to_update"))
+        return EXIT_OK
+
+    package_count = len({name for _, name in tasks})
+    cli_out(t("cli_outdated_count").format(count=package_count))
+    if not assume_yes:
+        if not confirm_cli(
+            t("cli_confirm_update_all").format(count=package_count)
+        ):
+            cli_out(t("cancelled"))
+            return EXIT_CANCELLED
+
+    return _run_cli_update_tasks(tasks)
+
+
+def run_cli_update_select(snapshot):
+    """Lista os pacotes desatualizados e atualiza apenas os escolhidos.
+
+    Args:
+        snapshot: dados coletados
+
+    Returns:
+        codigo de saida estavel
+    """
+    entries = _cli_outdated_entries(snapshot)
+    if not entries:
+        cli_out(t("nothing_to_update"))
+        return EXIT_OK
+
+    render_cli_selection(entries)
+
+    answer = read_cli_choice("  > ")
+    indices, error = parse_cli_selection(answer, len(entries))
+    if error is not None:
+        cli_err(t("cli_selection_invalid").format(total=len(entries)))
+        return EXIT_USAGE
+    if indices is None:
+        cli_out(t("cancelled"))
+        return EXIT_CANCELLED
+
+    tasks = [
+        (entries[index]["scope"], entries[index]["name"])
+        for index in indices
+    ]
+    return _run_cli_update_tasks(tasks)
+
+
+def run_cli_uninstall(snapshot, name, scope):
+    """Desinstala um pacote pelo nome exato apos confirmacao explicita.
+
+    Args:
+        snapshot: dados coletados
+        name: nome exato do pacote
+        scope: LOCAL, GLOBAL ou None
+
+    Returns:
+        codigo de saida estavel
+    """
+    target, error = resolve_cli_target(name, scope, snapshot["rows"])
+    if error is not None:
+        return _cli_report_resolution_error(error, name)
+
+    render_cli_target(target, "uninstall")
+    cli_err(t("cli_confirmation_required"))
+    prompt = t("cli_uninstall_confirm").format(
+        name=target["name"], scope=target["scope"]
+    )
+    if not confirm_cli(prompt):
+        cli_out(t("cli_uninstall_cancelled"))
+        return EXIT_CANCELLED
+
+    args = _npm_uninstall_args(target["scope"], target["name"])
+    if run_npm_cmd(args):
+        cli_out(t("cli_uninstall_done").format(
+            name=target["name"], scope=target["scope"]
+        ))
+        return EXIT_OK
+    if _consume_timeout(" ".join(args)):
+        cli_err(t("cli_timeout"))
+        return EXIT_TIMEOUT
+    cli_err(t("cli_uninstall_failed").format(
+        name=target["name"], scope=target["scope"]
+    ))
+    return EXIT_NPM_FAILED
+
+
+def run_cli(request):
+    """Executa um unico comando CLI e devolve o codigo de saida.
+
+    Args:
+        request: dict validado por validate_cli_request
+
+    Returns:
+        codigo de saida estavel
+    """
+    action = request["action"]
+    scope = request["scope"]
+
+    if not DEMO_MODE and not npm_available():
+        cli_err(t("cli_npm_missing"))
+        return EXIT_NPM_FAILED
+
+    cli_out(t("cli_collecting"))
+    cli_out("")
+    snapshot = collect_cli_snapshot(action, scope)
+
+    if action == "list":
+        render_cli_list(snapshot)
+        if snapshot["timed_out"]:
+            cli_err(t("cli_timeout"))
+            return EXIT_TIMEOUT
+        if snapshot["failed"]:
+            cli_err(t("cli_collection_failed"))
+            return EXIT_COLLECTION
+        return EXIT_OK
+
+    if snapshot["timed_out"]:
+        cli_err(t("cli_timeout"))
+        return EXIT_TIMEOUT
+    if snapshot["failed"]:
+        cli_err(t("cli_collection_failed"))
+        return EXIT_COLLECTION
+
+    if action == "update_all":
+        return run_cli_update_all(snapshot, request["assume_yes"])
+    if action == "update_select":
+        return run_cli_update_select(snapshot)
+    if action == "update_one":
+        return run_cli_update_one(snapshot, request["package_name"], scope)
+    return run_cli_uninstall(snapshot, request["package_name"], scope)
+
+
+# =====================================================
 # MAIN LOOP
 # =====================================================
 def _read_input_line(initial=""):
@@ -2096,7 +2988,7 @@ def _selected_rows_from_input(value, rows):
     return selected
 
 
-def main():
+def run_interactive():
     load_language()
     results = queue.Queue()
     rows = collect_rows_demo() if DEMO_MODE else None
@@ -2390,5 +3282,28 @@ def main():
             dirty = True
 
 
+def main(argv=None):
+    """Escolhe entre modo CLI e modo interativo.
+
+    Args:
+        argv: argumentos sem o nome do programa; usa sys.argv por padrao
+
+    Returns:
+        codigo de saida do processo
+    """
+    args = sys.argv[1:] if argv is None else list(argv)
+    request = parse_cli_args(args)
+    if request is None:
+        run_interactive()
+        return EXIT_OK
+
+    _load_locale("en")
+    error = validate_cli_request(request)
+    if error is not None:
+        print(error, file=sys.stderr)
+        return EXIT_USAGE
+    return run_cli(request)
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -19,6 +19,7 @@ There is **no build system**, **no test framework**, and **no linter/formatter c
 python main.py
 
 # Run focused checks
+python tests/test_cli.py
 python tests/test_demo_isolation.py
 python tests/test_key_input.py
 python tests/test_package_selection.py
@@ -91,7 +92,11 @@ The file is structured into ASCII-bannered sections in this order:
    `uninstall_one`)
 10. DATA REFRESH — cached fetch loop (`collect_rows`, `CACHE_TTL`
     staleness), progressive daemon-worker results, and queued refreshes
-11. MAIN LOOP — keyboard handling and dispatch (`a` / `o` / `u` / digits /
+11. CLI — argument parsing, validation, bounded collection, exact-name
+    resolution, confirmations, the numbered `--update` selection, and stable
+    exit codes (`parse_cli_args`, `run_cli`, `collect_cli_snapshot`,
+    `resolve_cli_target`, `run_cli_update_select`)
+12. MAIN LOOP — keyboard handling and dispatch (`a` / `o` / `u` / digits /
     `r` / `q`; `(y/N)` and exact-name uninstall confirmations)
 
 ### Docs
